@@ -1,0 +1,424 @@
+// ============================================================
+// create_report_screen.dart — Formulario para crear un reporte
+// Campos: estudiante, curso, categoría, prioridad, descripción
+// ============================================================
+
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../core/constants/colors.dart';
+import '../widgets/gradient_button.dart';
+import '../widgets/soft_card.dart';
+import '../widgets/decorative_background.dart';
+
+class CreateReportScreen extends StatefulWidget {
+  const CreateReportScreen({super.key});
+
+  @override
+  State<CreateReportScreen> createState() => _CreateReportScreenState();
+}
+
+class _CreateReportScreenState extends State<CreateReportScreen> {
+  final _formKey = GlobalKey<FormState>();
+
+  // Controladores de texto
+  final _studentController = TextEditingController();
+  final _courseController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _reporterController = TextEditingController();
+
+  // Valores de los dropdowns
+  String _selectedPriority = 'Media';
+  String _selectedCategory = 'Conductual';
+
+  // Opciones disponibles
+  final List<String> _priorities = ['Alta', 'Media', 'Baja'];
+  final List<String> _categories = ['Conductual', 'Académico', 'Emocional', 'Familiar', 'Otro'];
+
+  @override
+  void dispose() {
+    _studentController.dispose();
+    _courseController.dispose();
+    _descriptionController.dispose();
+    _reporterController.dispose();
+    super.dispose();
+  }
+
+  void _submitReport() {
+    if (_formKey.currentState!.validate()) {
+      // En una app real aquí guardarías en base de datos
+      // Por ahora mostramos un diálogo de éxito
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: AppColors.mintGreen,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check_rounded, color: Color(0xFF43A047), size: 32),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '¡Reporte creado!',
+                style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textDark),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'El reporte de ${_studentController.text} fue registrado exitosamente.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(fontSize: 13, color: AppColors.textMedium),
+              ),
+              const SizedBox(height: 20),
+              GradientButton(
+                text: 'Aceptar',
+                height: 48,
+                onTap: () {
+                  Navigator.pop(context); // Cierra el diálogo
+                  Navigator.pop(context); // Vuelve al home
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.smokeWhite,
+      body: DecorativeBackground(
+        child: SafeArea(
+          child: Column(
+            children: [
+              // ── AppBar personalizado ─────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: AppColors.softShadow,
+                        ),
+                        child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: AppColors.textDark),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Text(
+                      'Nuevo Reporte',
+                      style: GoogleFonts.poppins(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // ── Formulario scrolleable ───────────────────────
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+
+                        // ── Sección: Datos del estudiante ────────
+                        _SectionTitle(title: 'Datos del estudiante', icon: Icons.person_outline_rounded),
+                        const SizedBox(height: 12),
+
+                        SoftCard(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            children: [
+                              _FormField(
+                                controller: _studentController,
+                                label: 'Nombre del estudiante',
+                                hint: 'Ej: Valentina Torres',
+                                icon: Icons.person_outline_rounded,
+                                validator: (v) => v!.isEmpty ? 'Campo requerido' : null,
+                              ),
+                              const SizedBox(height: 16),
+                              _FormField(
+                                controller: _courseController,
+                                label: 'Curso',
+                                hint: 'Ej: 3° Básico A',
+                                icon: Icons.class_outlined,
+                                validator: (v) => v!.isEmpty ? 'Campo requerido' : null,
+                              ),
+                              const SizedBox(height: 16),
+                              _FormField(
+                                controller: _reporterController,
+                                label: 'Reportado por',
+                                hint: 'Ej: Prof. Martínez',
+                                icon: Icons.badge_outlined,
+                                validator: (v) => v!.isEmpty ? 'Campo requerido' : null,
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        // ── Sección: Clasificación ───────────────
+                        _SectionTitle(title: 'Clasificación', icon: Icons.label_outline_rounded),
+                        const SizedBox(height: 12),
+
+                        SoftCard(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            children: [
+                              // Selector de categoría
+                              _buildLabel('Categoría'),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: _categories.map((cat) {
+                                  final isSelected = cat == _selectedCategory;
+                                  return GestureDetector(
+                                    onTap: () => setState(() => _selectedCategory = cat),
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 150),
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        gradient: isSelected ? AppColors.primaryGradient : null,
+                                        color: isSelected ? null : AppColors.smokeWhite,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: isSelected ? Colors.transparent : const Color(0xFFEEEEEE),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        cat,
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w500,
+                                          color: isSelected ? Colors.white : AppColors.textMedium,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+
+                              const SizedBox(height: 16),
+
+                              // Selector de prioridad
+                              _buildLabel('Prioridad'),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: _priorities.map((p) {
+                                  final isSelected = p == _selectedPriority;
+                                  Color bgColor;
+                                  Color textColor;
+                                  switch (p) {
+                                    case 'Alta':
+                                      bgColor = AppColors.priorityHigh;
+                                      textColor = AppColors.priorityHighText;
+                                      break;
+                                    case 'Media':
+                                      bgColor = AppColors.priorityMedium;
+                                      textColor = AppColors.priorityMediumText;
+                                      break;
+                                    default:
+                                      bgColor = AppColors.priorityLow;
+                                      textColor = AppColors.priorityLowText;
+                                  }
+                                  return Expanded(
+                                    child: GestureDetector(
+                                      onTap: () => setState(() => _selectedPriority = p),
+                                      child: AnimatedContainer(
+                                        duration: const Duration(milliseconds: 150),
+                                        margin: const EdgeInsets.only(right: 8),
+                                        padding: const EdgeInsets.symmetric(vertical: 10),
+                                        decoration: BoxDecoration(
+                                          color: isSelected ? bgColor : AppColors.smokeWhite,
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: isSelected ? textColor.withValues(alpha: 0.3) : const Color(0xFFEEEEEE),
+                                            width: isSelected ? 2 : 1,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          p,
+                                          textAlign: TextAlign.center,
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 13,
+                                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                                            color: isSelected ? textColor : AppColors.textMedium,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        // ── Sección: Descripción ─────────────────
+                        _SectionTitle(title: 'Descripción del incidente', icon: Icons.description_outlined),
+                        const SizedBox(height: 12),
+
+                        SoftCard(
+                          padding: const EdgeInsets.all(16),
+                          child: TextFormField(
+                            controller: _descriptionController,
+                            maxLines: 5,
+                            validator: (v) => v!.isEmpty ? 'Describe el incidente' : null,
+                            style: GoogleFonts.poppins(fontSize: 14, color: AppColors.textDark),
+                            decoration: InputDecoration(
+                              hintText: 'Describe detalladamente la situación observada...',
+                              hintStyle: GoogleFonts.poppins(fontSize: 13, color: AppColors.textLight),
+                              border: InputBorder.none,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 28),
+
+                        // ── Botón de envío ───────────────────────
+                        GradientButton(
+                          text: 'Guardar Reporte',
+                          icon: Icons.save_rounded,
+                          onTap: _submitReport,
+                        ),
+
+                        const SizedBox(height: 32),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLabel(String text) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        text,
+        style: GoogleFonts.poppins(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textDark,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Widget: título de sección ─────────────────────────────────
+class _SectionTitle extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  const _SectionTitle({required this.title, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: const Color(0xFF9575CD)),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: GoogleFonts.poppins(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textDark,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Widget: campo de formulario reutilizable ──────────────────
+class _FormField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final String hint;
+  final IconData icon;
+  final String? Function(String?)? validator;
+
+  const _FormField({
+    required this.controller,
+    required this.label,
+    required this.hint,
+    required this.icon,
+    this.validator,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textMedium,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller,
+          validator: validator,
+          style: GoogleFonts.poppins(fontSize: 14, color: AppColors.textDark),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: GoogleFonts.poppins(fontSize: 13, color: AppColors.textLight),
+            prefixIcon: Icon(icon, color: AppColors.textLight, size: 18),
+            filled: true,
+            fillColor: AppColors.smokeWhite,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFB39DDB), width: 1.5),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFEF9A9A)),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFEF9A9A), width: 1.5),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}

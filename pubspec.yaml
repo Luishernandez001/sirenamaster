@@ -1,0 +1,32 @@
+name: serenia
+description: "App de gestión de reportes estudiantiles y seguimiento psicopedagógico."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.9.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Fuente Poppins de Google Fonts
+  google_fonts: ^6.2.1
+
+  # Iconos modernos
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  # Carpeta de assets (imágenes)
+  assets:
+    - assets/images/
+
+  # Fuentes locales (opcional, google_fonts las descarga automáticamente)
+  fonts: []
