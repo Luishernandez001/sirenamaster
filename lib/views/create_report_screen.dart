@@ -4,6 +4,7 @@
 // ============================================================
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/constants/colors.dart';
 import '../widgets/gradient_button.dart';
@@ -23,6 +24,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
   // Controladores de texto
   final _studentController = TextEditingController();
   final _courseController = TextEditingController();
+  final _listNumberController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _reporterController = TextEditingController();
 
@@ -38,6 +40,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
   void dispose() {
     _studentController.dispose();
     _courseController.dispose();
+    _listNumberController.dispose();
     _descriptionController.dispose();
     _reporterController.dispose();
     super.dispose();
@@ -163,6 +166,62 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                                 hint: 'Ej: 3° Básico A',
                                 icon: Icons.class_outlined,
                                 validator: (v) => v!.isEmpty ? 'Campo requerido' : null,
+                              ),
+                              const SizedBox(height: 16),
+                              // Nº de lista del estudiante (1-50)
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Nº de lista',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textMedium,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  TextFormField(
+                                    controller: _listNumberController,
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly,
+                                      LengthLimitingTextInputFormatter(2),
+                                    ],
+                                    validator: (v) {
+                                      if (v == null || v.isEmpty) return 'Campo requerido';
+                                      final n = int.tryParse(v);
+                                      if (n == null) return 'Ingrese un número válido';
+                                      if (n < 1 || n > 50) return 'Ingrese un número entre 1 y 50';
+                                      return null;
+                                    },
+                                    style: GoogleFonts.poppins(fontSize: 14, color: AppColors.textDark),
+                                    decoration: InputDecoration(
+                                      hintText: 'Ej: 12',
+                                      hintStyle: GoogleFonts.poppins(fontSize: 13, color: AppColors.textLight),
+                                      prefixIcon: Icon(Icons.format_list_numbered, color: AppColors.textLight, size: 18),
+                                      filled: true,
+                                      fillColor: AppColors.smokeWhite,
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(color: Color(0xFFB39DDB), width: 1.5),
+                                      ),
+                                      errorBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(color: Color(0xFFEF9A9A)),
+                                      ),
+                                      focusedErrorBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(color: Color(0xFFEF9A9A), width: 1.5),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 16),
                               _FormField(
