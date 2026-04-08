@@ -60,26 +60,7 @@ class WelcomeScreen extends StatelessWidget {
                   },
                 ),
 
-                const SizedBox(height: 16),
-
-                // ── Texto secundario ────────────────────────────
-                TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const LoginScreen()),
-                    );
-                  },
-                  child: Text(
-                    '¿Ya tienes cuenta? Inicia sesión',
-                    style: GoogleFonts.poppins(
-                      color: AppColors.textMedium,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 20),
+                const SizedBox(height: 36),
               ],
             ),
           ),
