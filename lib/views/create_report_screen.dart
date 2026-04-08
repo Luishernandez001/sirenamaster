@@ -5,6 +5,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/constants/colors.dart';
@@ -110,52 +112,82 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                 text: 'Aceptar',
                 height: 48,
                 onTap: () {
-                  Navigator.pop(context); // Cierra el diálogo
-                  Navigator.pop(context); // Vuelve al home
-                },
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-  }
+                  // Update reportedAt to current system time at submit
+                  _reportedAt = DateTime.now();
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.smokeWhite,
-      body: DecorativeBackground(
-        child: SafeArea(
-          child: Column(
-            children: [
-              // ── AppBar personalizado ─────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                child: Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          boxShadow: AppColors.softShadow,
+                  if (!_formKey.currentState!.validate()) return;
+
+                  // Must be authenticated to create a report
+                  final user = FirebaseAuth.instance.currentUser;
+                  if (user == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Debes iniciar sesión para crear un reporte')));
+                    return;
+                  }
+
+                  // Prepare report data
+                  final doc = {
+                    'datosEstudiante': {
+                      'nombre': _studentController.text.trim(),
+                      'curso': _courseController.text.trim(),
+                      'numeroLista': int.tryParse(_listNumberController.text.trim()) ?? null,
+                    },
+                    'autor': {
+                      'uid': user.uid,
+                      'nombre': _reporterController.text.trim(),
+                    },
+                    'fechaHora': Timestamp.fromDate(_reportedAt.toUtc()),
+                    'clasificacion': {
+                      'categoria': _selectedCategory,
+                      'prioridad': _selectedPriority,
+                    },
+                    'descripcion': _descriptionController.text.trim(),
+                  };
+
+                  // Save to Firestore
+                  FirebaseFirestore.instance.collection('reportes').add(doc).then((_) {
+                    showDialog(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 64,
+                              height: 64,
+                              decoration: BoxDecoration(
+                                color: AppColors.mintGreen,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.check_rounded, color: Color(0xFF43A047), size: 32),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              '¡Reporte creado!',
+                              style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textDark),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'El reporte de ${_studentController.text} fue registrado exitosamente.\n${_formatDateTime(_reportedAt)}',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.poppins(fontSize: 13, color: AppColors.textMedium),
+                            ),
+                            const SizedBox(height: 20),
+                            GradientButton(
+                              text: 'Aceptar',
+                              height: 48,
+                              onTap: () {
+                                Navigator.pop(context); // Cierra el diálogo
+                                Navigator.pop(context); // Vuelve al home
+                              },
+                            ),
+                          ],
                         ),
-                        child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: AppColors.textDark),
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    Text(
-                      'Nuevo Reporte',
-                      style: GoogleFonts.poppins(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textDark,
-                      ),
-                    ),
+                    );
+                  }).catchError((e) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error guardando reporte: $e')));
+                  });
                   ],
                 ),
               ),
