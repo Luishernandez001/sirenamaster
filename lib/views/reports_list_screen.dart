@@ -26,6 +26,7 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
   String _searchQuery = '';
 
   final _searchController = TextEditingController();
+  DateTime? _selectedDate;
 
   // Filtros disponibles
   final List<String> _filters = ['Todos', 'Alta', 'Media', 'Baja'];
@@ -37,6 +38,8 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
       final matchesSearch = _searchQuery.isEmpty ||
           r.studentName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           r.course.toLowerCase().contains(_searchQuery.toLowerCase());
+      final matchesDate = _selectedDate == null ||
+          (r.date.year == _selectedDate!.year && r.date.month == _selectedDate!.month && r.date.day == _selectedDate!.day);
       return matchesPriority && matchesSearch;
     }).toList();
   }
@@ -116,7 +119,58 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
               ),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+
+            // ── Filtro por fecha ─────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _selectedDate ?? DateTime.now(),
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime.now().add(const Duration(days: 365)),
+                        );
+                        if (picked != null) setState(() => _selectedDate = picked);
+                      },
+                      child: Container(
+                        height: 44,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: AppColors.softShadow,
+                          border: Border.all(color: const Color(0xFFEEEEEE)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.calendar_today_outlined, color: AppColors.textLight, size: 18),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                _selectedDate == null ? 'Filtrar por fecha' : '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}',
+                                style: GoogleFonts.poppins(fontSize: 14, color: _selectedDate == null ? AppColors.textLight : AppColors.textDark),
+                              ),
+                            ),
+                            if (_selectedDate != null)
+                              GestureDetector(
+                                onTap: () => setState(() => _selectedDate = null),
+                                child: const Icon(Icons.close_rounded, color: AppColors.textLight, size: 18),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 12),
 
             // ── Chips de filtro ──────────────────────────────
             SizedBox(
