@@ -1,1 +1,36 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"sireniamaster","appId":"1:819383805174:android:267e730a06f72425d538d7","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"sireniamaster","configurations":{"android":"1:819383805174:android:267e730a06f72425d538d7","web":"1:819383805174:web:bde3ca4ec7771857d538d7"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "sireniamaster",
+          "appId": "1:819383805174:android:267e730a06f72425d538d7",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "sireniamaster",
+          "configurations": {
+            "android": "1:819383805174:android:267e730a06f72425d538d7",
+            "web": "1:819383805174:web:bde3ca4ec7771857d538d7"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
