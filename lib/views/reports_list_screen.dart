@@ -63,6 +63,7 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
 
     if (_fieldContainsQuery(r.studentName, qn)) return true;
     if (_fieldContainsQuery(r.course, qn)) return true;
+    if (_fieldContainsQuery(r.area, qn)) return true;
     if (_fieldContainsQuery(r.category, qn)) return true;
     if (_fieldContainsQuery(r.priority, qn)) return true;
 
@@ -103,6 +104,7 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
         studentName: datos['nombre']?.toString() ?? '',
         course: datos['curso']?.toString() ?? '',
         listNumber: parseFirestoreOptionalInt(datos['numeroLista']),
+        area: datos['area']?.toString() ?? '',
         priority: clas['prioridad']?.toString() ?? 'Media',
         category: clas['categoria']?.toString() ?? 'Otro',
         description: data['descripcion']?.toString() ?? '',
@@ -166,7 +168,7 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
                   onChanged: (v) => setState(() => _searchQuery = v),
                   style: GoogleFonts.poppins(fontSize: 14, color: AppColors.textDark),
                   decoration: InputDecoration(
-                    hintText: 'Nombre, curso, Nº lista, categoría o prioridad…',
+                    hintText: 'Nombre, curso, área, Nº lista, categoría o prioridad…',
                     hintStyle: GoogleFonts.poppins(fontSize: 13, color: AppColors.textLight),
                     prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textLight, size: 20),
                     suffixIcon: _searchQuery.isNotEmpty
@@ -354,6 +356,13 @@ class _ReportCard extends StatelessWidget {
                       report.course,
                       style: GoogleFonts.poppins(fontSize: 12, color: AppColors.textMedium),
                     ),
+                    if (report.area.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'Área: ${report.area}',
+                        style: GoogleFonts.poppins(fontSize: 11, color: AppColors.textLight),
+                      ),
+                    ],
                   ],
                 ),
               ),

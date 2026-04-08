@@ -7,6 +7,8 @@ class ReportModel {
   final String studentName;
   final String course;
   final int? listNumber;
+  /// Área académica/administrativa (p. ej. Informática, Enfermería, Finanzas).
+  final String area;
   final String priority;   // 'Alta', 'Media', 'Baja'
   final String category;   // 'Conductual', 'Académico', 'Emocional', 'Familiar'
   final String description;
@@ -18,6 +20,7 @@ class ReportModel {
     required this.studentName,
     required this.course,
     this.listNumber,
+    this.area = '',
     required this.priority,
     required this.category,
     required this.description,

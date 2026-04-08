@@ -46,6 +46,9 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
   static const List<String> _gradeWords = ['1ro', '2do', '3ro', '4to', '5to', '6to'];
   static const List<String> _sections = ['A', 'B', 'C', 'D', 'E'];
 
+  static const List<String> _areas = ['Informática', 'Enfermería', 'Finanzas'];
+  String _selectedArea = 'Informática';
+
   String get _composedCourse => '${_gradeWords[_courseGrade - 1]} $_courseSection';
 
   @override
@@ -80,6 +83,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
         'nombre': _studentController.text.trim(),
         'curso': _composedCourse,
         'numeroLista': int.tryParse(_listNumberController.text.trim()),
+        'area': _selectedArea,
       },
       'autor': {
         'uid': user.uid,
@@ -326,6 +330,57 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                                         borderSide: const BorderSide(color: Color(0xFFEF9A9A), width: 1.5),
                                       ),
                                     ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.domain_outlined, color: AppColors.textLight, size: 18),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Área',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.textMedium,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: _areas.map((a) {
+                                      final selected = _selectedArea == a;
+                                      return GestureDetector(
+                                        onTap: () => setState(() => _selectedArea = a),
+                                        child: AnimatedContainer(
+                                          duration: const Duration(milliseconds: 150),
+                                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                          decoration: BoxDecoration(
+                                            gradient: selected ? AppColors.primaryGradient : null,
+                                            color: selected ? null : AppColors.smokeWhite,
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(
+                                              color: selected ? Colors.transparent : const Color(0xFFEEEEEE),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            a,
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w500,
+                                              color: selected ? Colors.white : AppColors.textDark,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
                                   ),
                                 ],
                               ),
