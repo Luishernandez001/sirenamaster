@@ -5,6 +5,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/constants/colors.dart';
 import '../core/models/report_model.dart';
 import '../widgets/soft_card.dart';
@@ -32,15 +33,15 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
   final List<String> _filters = ['Todos', 'Alta', 'Media', 'Baja'];
 
   // Retorna los reportes filtrados según búsqueda y prioridad
-  List<ReportModel> get _filteredReports {
-    return sampleReports.where((r) {
+  List<ReportModel> _applyFilters(List<ReportModel> list) {
+    return list.where((r) {
       final matchesPriority = _activeFilter == 'Todos' || r.priority == _activeFilter;
       final matchesSearch = _searchQuery.isEmpty ||
           r.studentName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           r.course.toLowerCase().contains(_searchQuery.toLowerCase());
       final matchesDate = _selectedDate == null ||
           (r.date.year == _selectedDate!.year && r.date.month == _selectedDate!.month && r.date.day == _selectedDate!.day);
-      return matchesPriority && matchesSearch;
+      return matchesPriority && matchesSearch && matchesDate;
     }).toList();
   }
 
@@ -210,16 +211,42 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
 
             const SizedBox(height: 16),
 
-            // ── Lista de reportes ────────────────────────────
+            // ── Lista de reportes (desde Firestore) ───────────
             Expanded(
-              child: reports.isEmpty
-                  ? _EmptyState() // Muestra estado vacío si no hay resultados
-                  : ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      itemCount: reports.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 12),
-                      itemBuilder: (_, i) => _ReportCard(report: reports[i]),
-                    ),
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance.collection('reports').orderBy('date', descending: true).snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) return Center(child: Text('Error cargando reportes'));
+                  if (snapshot.connectionState == ConnectionState.waiting) return Center(child: CircularProgressIndicator());
+
+                  final docs = snapshot.data!.docs;
+                  final reports = docs.map((d) {
+                    final data = d.data() as Map<String, dynamic>;
+                    return ReportModel(
+                      id: d.id,
+                      studentName: data['studentName'] ?? '',
+                      course: data['course'] ?? '',
+                      listNumber: data['listNumber'] == null ? null : (data['listNumber'] as num).toInt(),
+                      priority: data['priority'] ?? 'Media',
+                      category: data['category'] ?? 'Otro',
+                      description: data['description'] ?? '',
+                      date: (data['date'] is Timestamp) ? (data['date'] as Timestamp).toDate() : DateTime.now(),
+                      reportedBy: data['reportedBy'] ?? '',
+                    );
+                  }).toList();
+
+                  final filtered = _applyFilters(reports);
+
+                  return filtered.isEmpty
+                      ? _EmptyState()
+                      : ListView.separated(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 12),
+                          itemBuilder: (_, i) => _ReportCard(report: filtered[i]),
+                        );
+                },
+              ),
             ),
           ],
         ),

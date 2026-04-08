@@ -5,6 +5,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/constants/colors.dart';
 import '../widgets/gradient_button.dart';
@@ -57,8 +58,26 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
     // Update reportedAt to current system time at submit
     _reportedAt = DateTime.now();
     if (_formKey.currentState!.validate()) {
-      // En una app real aquí guardarías en base de datos
-      // Por ahora mostramos un diálogo de éxito
+      // Guardar en Firestore
+      try {
+        final docRef = FirebaseFirestore.instance.collection('reports').doc();
+        docRef.set({
+          'studentName': _studentController.text.trim(),
+          'course': _courseController.text.trim(),
+          'listNumber': _listNumberController.text.isEmpty ? null : int.parse(_listNumberController.text),
+          'priority': _selectedPriority,
+          'category': _selectedCategory,
+          'description': _descriptionController.text.trim(),
+          'date': Timestamp.fromDate(_reportedAt),
+          'reportedBy': _reporterController.text.trim(),
+        });
+      } catch (e) {
+        // Si falla el guardado, mostrar error y salir
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error guardando en la nube: $e')));
+        return;
+      }
+
+      // Mostrar diálogo de éxito
       showDialog(
         context: context,
         builder: (_) => AlertDialog(

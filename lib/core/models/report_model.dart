@@ -6,6 +6,7 @@ class ReportModel {
   final String id;
   final String studentName;
   final String course;
+  final int? listNumber;
   final String priority;   // 'Alta', 'Media', 'Baja'
   final String category;   // 'Conductual', 'Académico', 'Emocional', 'Familiar'
   final String description;
@@ -16,6 +17,7 @@ class ReportModel {
     required this.id,
     required this.studentName,
     required this.course,
+    this.listNumber,
     required this.priority,
     required this.category,
     required this.description,
