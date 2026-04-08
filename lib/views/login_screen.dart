@@ -5,6 +5,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../core/constants/colors.dart';
 import '../widgets/gradient_button.dart';
 import '../widgets/decorative_background.dart';
@@ -28,6 +29,8 @@ class _LoginScreenState extends State<LoginScreen> {
   // Clave para validar el formulario
   final _formKey = GlobalKey<FormState>();
 
+  bool _isLoading = false;
+
   @override
   void dispose() {
     // Libera memoria al salir de la pantalla
@@ -38,14 +41,41 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // Función que se ejecuta al presionar "Ingresar"
   void _handleLogin() {
-    if (_formKey.currentState!.validate()) {
-      // En una app real aquí iría la lógica de autenticación
-      // Por ahora navegamos directo al Home
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    FirebaseAuth.instance
+        .signInWithEmailAndPassword(email: email, password: password)
+        .then((cred) {
+      setState(() => _isLoading = false);
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const HomeScreen()),
       );
-    }
+    }).catchError((error) {
+      setState(() => _isLoading = false);
+      String message = 'Error al iniciar sesión';
+      if (error is FirebaseAuthException) {
+        switch (error.code) {
+          case 'user-not-found':
+            message = 'Usuario no existe';
+            break;
+          case 'wrong-password':
+            message = 'Contraseña incorrecta';
+            break;
+          case 'invalid-email':
+            message = 'Correo inválido';
+            break;
+          default:
+            message = error.message ?? message;
+        }
+      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    });
   }
 
   @override
@@ -75,11 +105,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         borderRadius: BorderRadius.circular(14),
                         boxShadow: AppColors.softShadow,
                       ),
-                      child: const Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        size: 18,
-                        color: AppColors.textDark,
-                      ),
+                      child: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: AppColors.textDark),
                     ),
                   ),
 
