@@ -344,18 +344,57 @@ class _BubbleNavItem extends StatelessWidget {
   }
 }
 
+/// Totales del home según documentos de `reportes` en Firestore.
+class _HomeReportCounts {
+  final int total;
+  final int high;
+  final int medium;
+  final int low;
+  const _HomeReportCounts({required this.total, required this.high, required this.medium, required this.low});
+}
+
+_HomeReportCounts _countsFromReportDocs(List<QueryDocumentSnapshot<Object?>> docs) {
+  var high = 0, medium = 0, low = 0;
+  for (final d in docs) {
+    final data = d.data() as Map<String, dynamic>;
+    final clas = data['clasificacion'] as Map<String, dynamic>? ?? {};
+    final p = clas['prioridad']?.toString().trim() ?? 'Media';
+    if (p == 'Alta') {
+      high++;
+    } else if (p == 'Baja') {
+      low++;
+    } else {
+      medium++;
+    }
+  }
+  return _HomeReportCounts(total: docs.length, high: high, medium: medium, low: low);
+}
+
 // ============================================================
-// _DashboardTab — Dashboard premium
+// _DashboardTab — Dashboard premium (estadísticas desde Firestore)
 // ============================================================
-class _DashboardTab extends StatelessWidget {
+class _DashboardTab extends StatefulWidget {
   const _DashboardTab();
 
   @override
+  State<_DashboardTab> createState() => _DashboardTabState();
+}
+
+class _DashboardTabState extends State<_DashboardTab> {
+  late final Stream<QuerySnapshot> _reportesStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _reportesStream = FirebaseFirestore.instance.collection('reportes').orderBy('fechaHora', descending: true).snapshots();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final total = sampleReports.length;
-    final high = sampleReports.where((r) => r.priority == 'Alta').length;
-    final medium = sampleReports.where((r) => r.priority == 'Media').length;
-    final low = sampleReports.where((r) => r.priority == 'Baja').length;
+    final hoy = DateTime.now();
+    const dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+    final fechaStr = '${dias[hoy.weekday - 1]}, ${hoy.day} de ${meses[hoy.month - 1]} ${hoy.year}';
 
     return DecorativeBackground(
       child: SafeArea(
@@ -377,7 +416,7 @@ class _DashboardTab extends StatelessWidget {
                       children: [
                         Text('Hola, Orientador 👋',
                             style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textDark)),
-                        Text('Jueves, 2 de Abril 2026',
+                        Text(fechaStr,
                             style: GoogleFonts.poppins(fontSize: 12, color: AppColors.textMedium)),
                       ],
                     ),
@@ -398,22 +437,47 @@ class _DashboardTab extends StatelessWidget {
 
               const SizedBox(height: 24),
 
-              // ── Banner premium con gradiente oscuro ─────────
-              _AnimatedBanner(total: total, high: high),
+              StreamBuilder<QuerySnapshot>(
+                stream: _reportesStream,
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      child: Text(
+                        'No se pudieron cargar las estadísticas. Revisa tu conexión o permisos de Firestore.',
+                        style: GoogleFonts.poppins(fontSize: 13, color: AppColors.textMedium),
+                      ),
+                    );
+                  }
+                  if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 48),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
 
-              const SizedBox(height: 24),
+                  final docs = snapshot.data?.docs ?? [];
+                  final c = _countsFromReportDocs(docs);
 
-              // ── Estadísticas con animación de entrada ───────
-              Text('Estadísticas', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textDark)),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(child: _StatCard(label: 'Alta', count: high, color: AppColors.priorityHigh, textColor: AppColors.priorityHighText, icon: Icons.warning_amber_rounded)),
-                  const SizedBox(width: 12),
-                  Expanded(child: _StatCard(label: 'Media', count: medium, color: AppColors.priorityMedium, textColor: AppColors.priorityMediumText, icon: Icons.info_outline_rounded)),
-                  const SizedBox(width: 12),
-                  Expanded(child: _StatCard(label: 'Baja', count: low, color: AppColors.priorityLow, textColor: AppColors.priorityLowText, icon: Icons.check_circle_outline_rounded)),
-                ],
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _AnimatedBanner(total: c.total, high: c.high),
+                      const SizedBox(height: 24),
+                      Text('Estadísticas', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textDark)),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(child: _StatCard(label: 'Alta', count: c.high, color: AppColors.priorityHigh, textColor: AppColors.priorityHighText, icon: Icons.warning_amber_rounded)),
+                          const SizedBox(width: 12),
+                          Expanded(child: _StatCard(label: 'Media', count: c.medium, color: AppColors.priorityMedium, textColor: AppColors.priorityMediumText, icon: Icons.info_outline_rounded)),
+                          const SizedBox(width: 12),
+                          Expanded(child: _StatCard(label: 'Baja', count: c.low, color: AppColors.priorityLow, textColor: AppColors.priorityLowText, icon: Icons.check_circle_outline_rounded)),
+                        ],
+                      ),
+                    ],
+                  );
+                },
               ),
 
               const SizedBox(height: 28),
@@ -547,7 +611,7 @@ class _AnimatedBannerState extends State<_AnimatedBanner> with SingleTickerProvi
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text('Resumen del mes',
+                        Text('Resumen general',
                             style: GoogleFonts.poppins(fontSize: 12, color: Colors.white60)),
                         const SizedBox(height: 4),
                         Text('${widget.total} reportes activos',
