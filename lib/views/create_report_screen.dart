@@ -27,6 +27,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
   final _listNumberController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _reporterController = TextEditingController();
+  DateTime _reportedAt = DateTime.now();
 
   // Valores de los dropdowns
   String _selectedPriority = 'Media';
@@ -46,7 +47,15 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
     super.dispose();
   }
 
+  String _formatDateTime(DateTime dt) {
+    final d = dt;
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(d.day)}/${two(d.month)}/${d.year} ${two(d.hour)}:${two(d.minute)}';
+  }
+
   void _submitReport() {
+    // Update reportedAt to current system time at submit
+    _reportedAt = DateTime.now();
     if (_formKey.currentState!.validate()) {
       // En una app real aquí guardarías en base de datos
       // Por ahora mostramos un diálogo de éxito
@@ -73,7 +82,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'El reporte de ${_studentController.text} fue registrado exitosamente.',
+                'El reporte de ${_studentController.text} fue registrado exitosamente.\n${_formatDateTime(_reportedAt)}',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(fontSize: 13, color: AppColors.textMedium),
               ),
@@ -230,6 +239,41 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                                 hint: 'Ej: Prof. Martínez',
                                 icon: Icons.badge_outlined,
                                 validator: (v) => v!.isEmpty ? 'Campo requerido' : null,
+                              ),
+                              const SizedBox(height: 16),
+                              // Fecha y hora del reporte (auto)
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Fecha y hora',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textMedium,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  TextFormField(
+                                    initialValue: _formatDateTime(_reportedAt),
+                                    readOnly: true,
+                                    style: GoogleFonts.poppins(fontSize: 14, color: AppColors.textDark),
+                                    decoration: InputDecoration(
+                                      prefixIcon: Icon(Icons.access_time_outlined, color: AppColors.textLight, size: 18),
+                                      filled: true,
+                                      fillColor: AppColors.smokeWhite,
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(color: Color(0xFFB39DDB), width: 1.5),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
