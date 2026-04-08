@@ -11,7 +11,6 @@ import '../widgets/decorative_background.dart';
 import '../widgets/priority_badge.dart';
 import 'reports_list_screen.dart';
 import 'create_report_screen.dart';
-import 'psychology_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -33,7 +32,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _screens = [
       const _DashboardTab(),
       const ReportsListScreen(),
-      const PsychologyScreen(),
     ];
     _fadeController = AnimationController(vsync: this, duration: const Duration(milliseconds: 220));
     _fadeAnim = CurvedAnimation(parent: _fadeController, curve: Curves.easeInOut);
@@ -85,7 +83,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
 // ============================================================
 // _BubbleNavBar — BottomNav con burbuja perfectamente alineada
-// Usa 4 slots iguales: Inicio | Reportes | [+] | Psicología
+// Usa 3 slots: Inicio | Reportes | [+]
 // La burbuja se posiciona exactamente debajo del ícono activo
 // ============================================================
 class _BubbleNavBar extends StatefulWidget {
@@ -136,13 +134,12 @@ class _BubbleNavBarState extends State<_BubbleNavBar> with SingleTickerProviderS
         child: LayoutBuilder(
           builder: (context, constraints) {
             final totalWidth = constraints.maxWidth;
-            final slotWidth = totalWidth / 4;
+            final slotWidth = totalWidth / 3;
 
-            // Centro X de cada slot de navegación (slots 0,1,3 son nav items)
+            // Centro X de cada slot de navegación (slots 0 and 1 are pages)
             final List<double> slotCenters = [
-              slotWidth * 0.5,           // Inicio  → slot 0
-              slotWidth * 1.5,           // Reportes → slot 1
-              slotWidth * 3.5,           // Psicología → slot 3
+              slotWidth * 0.5, // Inicio → slot 0
+              slotWidth * 1.5, // Reportes → slot 1
             ];
 
             final bubbleLeft = slotCenters[widget.currentIndex] - bubbleSize / 2;
@@ -205,7 +202,7 @@ class _BubbleNavBarState extends State<_BubbleNavBar> with SingleTickerProviderS
                       children: [
                         Expanded(child: _BubbleNavItem(icon: Icons.home_rounded, index: 0, currentIndex: widget.currentIndex, onTap: widget.onTap)),
                         Expanded(child: _BubbleNavItem(icon: Icons.description_rounded, index: 1, currentIndex: widget.currentIndex, onTap: widget.onTap)),
-                        // Botón + central
+                        // Botón + al final
                         Expanded(
                           child: GestureDetector(
                             onTap: widget.onAddTap,
@@ -224,7 +221,6 @@ class _BubbleNavBarState extends State<_BubbleNavBar> with SingleTickerProviderS
                             ),
                           ),
                         ),
-                        Expanded(child: _BubbleNavItem(icon: Icons.psychology_rounded, index: 2, currentIndex: widget.currentIndex, onTap: widget.onTap)),
                       ],
                     ),
                   ),
