@@ -1,6 +1,6 @@
 // ============================================================
 // reports_list_screen.dart — Lista de todos los reportes
-// Con filtros por prioridad y búsqueda por nombre
+// Filtros por prioridad y búsqueda por nombre, curso, Nº lista, categoría y prioridad
 // ============================================================
 
 import 'package:flutter/material.dart';
@@ -40,13 +40,46 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
     _reportesStream = FirebaseFirestore.instance.collection('reportes').orderBy('fechaHora', descending: true).snapshots();
   }
 
+  /// Minúsculas y sin tildes para comparar búsqueda con datos (p. ej. "academico" ≈ "Académico").
+  static String _normalizeForSearch(String input) {
+    var s = input.toLowerCase();
+    const from = 'áàäâãåéèëêíìïîóòöôõúùüûñ';
+    const to = 'aaaaaaeeeeiiiiooooouuuun';
+    for (var i = 0; i < from.length; i++) {
+      s = s.replaceAll(from[i], to[i]);
+    }
+    return s.trim();
+  }
+
+  static bool _fieldContainsQuery(String fieldValue, String queryNormalized) {
+    if (queryNormalized.isEmpty) return true;
+    return _normalizeForSearch(fieldValue).contains(queryNormalized);
+  }
+
+  bool _matchesTextSearch(ReportModel r, String rawQuery) {
+    final trimmed = rawQuery.trim();
+    if (trimmed.isEmpty) return true;
+    final qn = _normalizeForSearch(trimmed);
+
+    if (_fieldContainsQuery(r.studentName, qn)) return true;
+    if (_fieldContainsQuery(r.course, qn)) return true;
+    if (_fieldContainsQuery(r.category, qn)) return true;
+    if (_fieldContainsQuery(r.priority, qn)) return true;
+
+    if (RegExp(r'^\d+$').hasMatch(trimmed)) {
+      final n = int.tryParse(trimmed);
+      if (n != null && r.listNumber == n) return true;
+    }
+    if (r.listNumber != null && _normalizeForSearch('${r.listNumber}').contains(qn)) return true;
+
+    return false;
+  }
+
   // Retorna los reportes filtrados según búsqueda y prioridad
   List<ReportModel> _applyFilters(List<ReportModel> list) {
     return list.where((r) {
       final matchesPriority = _activeFilter == 'Todos' || r.priority == _activeFilter;
-      final matchesSearch = _searchQuery.isEmpty ||
-          r.studentName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          r.course.toLowerCase().contains(_searchQuery.toLowerCase());
+      final matchesSearch = _matchesTextSearch(r, _searchQuery);
       final matchesDate = _selectedDate == null ||
           (r.date.year == _selectedDate!.year && r.date.month == _selectedDate!.month && r.date.day == _selectedDate!.day);
       return matchesPriority && matchesSearch && matchesDate;
@@ -57,6 +90,26 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  List<ReportModel> _mapDocsToReports(List<QueryDocumentSnapshot<Object?>> docs) {
+    return docs.map((d) {
+      final data = d.data() as Map<String, dynamic>;
+      final datos = data['datosEstudiante'] as Map<String, dynamic>? ?? {};
+      final autor = data['autor'] as Map<String, dynamic>? ?? {};
+      final clas = data['clasificacion'] as Map<String, dynamic>? ?? {};
+      return ReportModel(
+        id: d.id,
+        studentName: datos['nombre']?.toString() ?? '',
+        course: datos['curso']?.toString() ?? '',
+        listNumber: parseFirestoreOptionalInt(datos['numeroLista']),
+        priority: clas['prioridad']?.toString() ?? 'Media',
+        category: clas['categoria']?.toString() ?? 'Otro',
+        description: data['descripcion']?.toString() ?? '',
+        date: (data['fechaHora'] is Timestamp) ? (data['fechaHora'] as Timestamp).toDate() : DateTime.now(),
+        reportedBy: autor['nombre']?.toString() ?? '',
+      );
+    }).toList();
   }
 
   @override
@@ -77,6 +130,143 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: StreamBuilder<QuerySnapshot>(
+                stream: _reportesStream,
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return Text('Error al cargar el conteo', style: GoogleFonts.poppins(fontSize: 13, color: AppColors.textMedium));
+                  }
+                  final n = snapshot.data?.docs.length;
+                  final label = n == null ? '…' : '$n';
+                  return Text(
+                    '$label reportes registrados',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: AppColors.textMedium,
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Fuera del StreamBuilder principal: evita perder el foco al escribir (p. ej. Flutter web + snapshots).
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: AppColors.softShadow,
+                ),
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (v) => setState(() => _searchQuery = v),
+                  style: GoogleFonts.poppins(fontSize: 14, color: AppColors.textDark),
+                  decoration: InputDecoration(
+                    hintText: 'Nombre, curso, Nº lista, categoría o prioridad…',
+                    hintStyle: GoogleFonts.poppins(fontSize: 13, color: AppColors.textLight),
+                    prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textLight, size: 20),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? GestureDetector(
+                            onTap: () {
+                              _searchController.clear();
+                              setState(() => _searchQuery = '');
+                            },
+                            child: const Icon(Icons.close_rounded, color: AppColors.textLight, size: 18),
+                          )
+                        : null,
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _selectedDate ?? DateTime.now(),
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime.now().add(const Duration(days: 365)),
+                        );
+                        if (picked != null) setState(() => _selectedDate = picked);
+                      },
+                      child: Container(
+                        height: 44,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: AppColors.softShadow,
+                          border: Border.all(color: const Color(0xFFEEEEEE)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.calendar_today_outlined, color: AppColors.textLight, size: 18),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                _selectedDate == null ? 'Filtrar por fecha' : '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}',
+                                style: GoogleFonts.poppins(fontSize: 14, color: _selectedDate == null ? AppColors.textLight : AppColors.textDark),
+                              ),
+                            ),
+                            if (_selectedDate != null)
+                              GestureDetector(
+                                onTap: () => setState(() => _selectedDate = null),
+                                child: const Icon(Icons.close_rounded, color: AppColors.textLight, size: 18),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 36,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                itemCount: _filters.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (_, i) {
+                  final filter = _filters[i];
+                  final isActive = filter == _activeFilter;
+                  return GestureDetector(
+                    onTap: () => setState(() => _activeFilter = filter),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      decoration: BoxDecoration(
+                        gradient: isActive ? AppColors.primaryGradient : null,
+                        color: isActive ? null : Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: isActive ? AppColors.cardShadow : AppColors.softShadow,
+                      ),
+                      child: Text(
+                        filter,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: isActive ? Colors.white : AppColors.textMedium,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
             const SizedBox(height: 16),
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
@@ -90,166 +280,17 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
                   }
 
                   final docs = snapshot.data?.docs ?? [];
-                  final reports = docs.map((d) {
-                    final data = d.data() as Map<String, dynamic>;
-                    final datos = data['datosEstudiante'] as Map<String, dynamic>? ?? {};
-                    final autor = data['autor'] as Map<String, dynamic>? ?? {};
-                    final clas = data['clasificacion'] as Map<String, dynamic>? ?? {};
-                    return ReportModel(
-                      id: d.id,
-                      studentName: datos['nombre'] ?? '',
-                      course: datos['curso'] ?? '',
-                      listNumber: parseFirestoreOptionalInt(datos['numeroLista']),
-                      priority: clas['prioridad'] ?? 'Media',
-                      category: clas['categoria'] ?? 'Otro',
-                      description: data['descripcion'] ?? '',
-                      date: (data['fechaHora'] is Timestamp) ? (data['fechaHora'] as Timestamp).toDate() : DateTime.now(),
-                      reportedBy: autor['nombre'] ?? '',
-                    );
-                  }).toList();
-
+                  final reports = _mapDocsToReports(docs);
                   final filtered = _applyFilters(reports);
 
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Text(
-                          '${reports.length} reportes registrados',
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            color: AppColors.textMedium,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: AppColors.softShadow,
-                          ),
-                          child: TextField(
-                            controller: _searchController,
-                            onChanged: (v) => setState(() => _searchQuery = v),
-                            style: GoogleFonts.poppins(fontSize: 14, color: AppColors.textDark),
-                            decoration: InputDecoration(
-                              hintText: 'Buscar estudiante o curso...',
-                              hintStyle: GoogleFonts.poppins(fontSize: 14, color: AppColors.textLight),
-                              prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textLight, size: 20),
-                              suffixIcon: _searchQuery.isNotEmpty
-                                  ? GestureDetector(
-                                      onTap: () {
-                                        _searchController.clear();
-                                        setState(() => _searchQuery = '');
-                                      },
-                                      child: const Icon(Icons.close_rounded, color: AppColors.textLight, size: 18),
-                                    )
-                                  : null,
-                              border: InputBorder.none,
-                              contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: () async {
-                                  final picked = await showDatePicker(
-                                    context: context,
-                                    initialDate: _selectedDate ?? DateTime.now(),
-                                    firstDate: DateTime(2000),
-                                    lastDate: DateTime.now().add(const Duration(days: 365)),
-                                  );
-                                  if (picked != null) setState(() => _selectedDate = picked);
-                                },
-                                child: Container(
-                                  height: 44,
-                                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(12),
-                                    boxShadow: AppColors.softShadow,
-                                    border: Border.all(color: const Color(0xFFEEEEEE)),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      const Icon(Icons.calendar_today_outlined, color: AppColors.textLight, size: 18),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Text(
-                                          _selectedDate == null ? 'Filtrar por fecha' : '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}',
-                                          style: GoogleFonts.poppins(fontSize: 14, color: _selectedDate == null ? AppColors.textLight : AppColors.textDark),
-                                        ),
-                                      ),
-                                      if (_selectedDate != null)
-                                        GestureDetector(
-                                          onTap: () => setState(() => _selectedDate = null),
-                                          child: const Icon(Icons.close_rounded, color: AppColors.textLight, size: 18),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        height: 36,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          itemCount: _filters.length,
-                          separatorBuilder: (_, _) => const SizedBox(width: 8),
-                          itemBuilder: (_, i) {
-                            final filter = _filters[i];
-                            final isActive = filter == _activeFilter;
-                            return GestureDetector(
-                              onTap: () => setState(() => _activeFilter = filter),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                                decoration: BoxDecoration(
-                                  gradient: isActive ? AppColors.primaryGradient : null,
-                                  color: isActive ? null : Colors.white,
-                                  borderRadius: BorderRadius.circular(20),
-                                  boxShadow: isActive ? AppColors.cardShadow : AppColors.softShadow,
-                                ),
-                                child: Text(
-                                  filter,
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                    color: isActive ? Colors.white : AppColors.textMedium,
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Expanded(
-                        child: filtered.isEmpty
-                            ? const _EmptyState()
-                            : ListView.separated(
-                                padding: const EdgeInsets.symmetric(horizontal: 24),
-                                itemCount: filtered.length,
-                                separatorBuilder: (_, _) => const SizedBox(height: 12),
-                                itemBuilder: (_, i) => _ReportCard(report: filtered[i]),
-                              ),
-                      ),
-                    ],
+                  if (filtered.isEmpty) {
+                    return const _EmptyState();
+                  }
+                  return ListView.separated(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
+                    itemBuilder: (_, i) => _ReportCard(report: filtered[i]),
                   );
                 },
               ),
