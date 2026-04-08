@@ -53,8 +53,6 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final reports = _filteredReports;
-
     return DecorativeBackground(
       child: SafeArea(
         child: Column(
@@ -214,31 +212,34 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
             // ── Lista de reportes (desde Firestore) ───────────
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance.collection('reports').orderBy('date', descending: true).snapshots(),
+                stream: FirebaseFirestore.instance.collection('reportes').orderBy('fechaHora', descending: true).snapshots(),
                 builder: (context, snapshot) {
                   if (snapshot.hasError) return Center(child: Text('Error cargando reportes'));
-                  if (snapshot.connectionState == ConnectionState.waiting) return Center(child: CircularProgressIndicator());
+                  if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
 
                   final docs = snapshot.data!.docs;
                   final reports = docs.map((d) {
                     final data = d.data() as Map<String, dynamic>;
+                    final datos = data['datosEstudiante'] as Map<String, dynamic>? ?? {};
+                    final autor = data['autor'] as Map<String, dynamic>? ?? {};
+                    final clas = data['clasificacion'] as Map<String, dynamic>? ?? {};
                     return ReportModel(
                       id: d.id,
-                      studentName: data['studentName'] ?? '',
-                      course: data['course'] ?? '',
-                      listNumber: data['listNumber'] == null ? null : (data['listNumber'] as num).toInt(),
-                      priority: data['priority'] ?? 'Media',
-                      category: data['category'] ?? 'Otro',
-                      description: data['description'] ?? '',
-                      date: (data['date'] is Timestamp) ? (data['date'] as Timestamp).toDate() : DateTime.now(),
-                      reportedBy: data['reportedBy'] ?? '',
+                      studentName: datos['nombre'] ?? '',
+                      course: datos['curso'] ?? '',
+                      listNumber: datos['numeroLista'] == null ? null : (datos['numeroLista'] as num).toInt(),
+                      priority: clas['prioridad'] ?? 'Media',
+                      category: clas['categoria'] ?? 'Otro',
+                      description: data['descripcion'] ?? '',
+                      date: (data['fechaHora'] is Timestamp) ? (data['fechaHora'] as Timestamp).toDate() : DateTime.now(),
+                      reportedBy: autor['nombre'] ?? '',
                     );
                   }).toList();
 
                   final filtered = _applyFilters(reports);
 
                   return filtered.isEmpty
-                      ? _EmptyState()
+                      ? const _EmptyState()
                       : ListView.separated(
                           padding: const EdgeInsets.symmetric(horizontal: 24),
                           itemCount: filtered.length,
@@ -383,6 +384,8 @@ class _InfoChip extends StatelessWidget {
 
 // ── Widget: estado vacío ──────────────────────────────────────
 class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
   @override
   Widget build(BuildContext context) {
     return Center(

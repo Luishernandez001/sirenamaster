@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'login_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/constants/colors.dart';
 import '../widgets/gradient_button.dart';
@@ -56,30 +56,38 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
     return '${two(d.day)}/${two(d.month)}/${d.year} ${two(d.hour)}:${two(d.minute)}';
   }
 
-  void _submitReport() {
-    // Update reportedAt to current system time at submit
+  void _submitReport() async {
     _reportedAt = DateTime.now();
-    if (_formKey.currentState!.validate()) {
-      // Guardar en Firestore
-      try {
-        final docRef = FirebaseFirestore.instance.collection('reports').doc();
-        docRef.set({
-          'studentName': _studentController.text.trim(),
-          'course': _courseController.text.trim(),
-          'listNumber': _listNumberController.text.isEmpty ? null : int.parse(_listNumberController.text),
-          'priority': _selectedPriority,
-          'category': _selectedCategory,
-          'description': _descriptionController.text.trim(),
-          'date': Timestamp.fromDate(_reportedAt),
-          'reportedBy': _reporterController.text.trim(),
-        });
-      } catch (e) {
-        // Si falla el guardado, mostrar error y salir
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error guardando en la nube: $e')));
-        return;
-      }
 
-      // Mostrar diálogo de éxito
+    if (!_formKey.currentState!.validate()) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Debes iniciar sesión para crear un reporte')));
+      Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+      return;
+    }
+
+    final doc = {
+      'datosEstudiante': {
+        'nombre': _studentController.text.trim(),
+        'curso': _courseController.text.trim(),
+        'numeroLista': int.tryParse(_listNumberController.text.trim()),
+      },
+      'autor': {
+        'uid': user.uid,
+        'nombre': _reporterController.text.trim(),
+      },
+      'fechaHora': Timestamp.fromDate(_reportedAt.toUtc()),
+      'clasificacion': {
+        'categoria': _selectedCategory,
+        'prioridad': _selectedPriority,
+      },
+      'descripcion': _descriptionController.text.trim(),
+    };
+
+    try {
+      await FirebaseFirestore.instance.collection('reportes').add(doc);
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
@@ -112,97 +120,31 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                 text: 'Aceptar',
                 height: 48,
                 onTap: () {
-                  // Update reportedAt to current system time at submit
-                  _reportedAt = DateTime.now();
-
-                  if (!_formKey.currentState!.validate()) return;
-
-                  // Must be authenticated to create a report
-                  final user = FirebaseAuth.instance.currentUser;
-                  if (user == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Debes iniciar sesión para crear un reporte')));
-                    return;
-                  }
-
-                  // Prepare report data
-                  final doc = {
-                    'datosEstudiante': {
-                      'nombre': _studentController.text.trim(),
-                      'curso': _courseController.text.trim(),
-                      'numeroLista': int.tryParse(_listNumberController.text.trim()) ?? null,
-                    },
-                    'autor': {
-                      'uid': user.uid,
-                      'nombre': _reporterController.text.trim(),
-                    },
-                    'fechaHora': Timestamp.fromDate(_reportedAt.toUtc()),
-                    'clasificacion': {
-                      'categoria': _selectedCategory,
-                      'prioridad': _selectedPriority,
-                    },
-                    'descripcion': _descriptionController.text.trim(),
-                  };
-
-                  // Save to Firestore
-                  FirebaseFirestore.instance.collection('reportes').add(doc).then((_) {
-                    showDialog(
-                      context: context,
-                      builder: (_) => AlertDialog(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                        content: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 64,
-                              height: 64,
-                              decoration: BoxDecoration(
-                                color: AppColors.mintGreen,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.check_rounded, color: Color(0xFF43A047), size: 32),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              '¡Reporte creado!',
-                              style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textDark),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'El reporte de ${_studentController.text} fue registrado exitosamente.\n${_formatDateTime(_reportedAt)}',
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.poppins(fontSize: 13, color: AppColors.textMedium),
-                            ),
-                            const SizedBox(height: 20),
-                            GradientButton(
-                              text: 'Aceptar',
-                              height: 48,
-                              onTap: () {
-                                Navigator.pop(context); // Cierra el diálogo
-                                Navigator.pop(context); // Vuelve al home
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }).catchError((e) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error guardando reporte: $e')));
-                  });
-                  ],
-                ),
+                  Navigator.pop(context); // cierra diálogo
+                  Navigator.pop(context); // vuelve al home
+                },
               ),
-
-              const SizedBox(height: 20),
-
-              // ── Formulario scrolleable ───────────────────────
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+            ],
+          ),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error guardando reporte: $e')));
+    }
+  }
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.smokeWhite,
+      body: DecorativeBackground(
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
 
                         // ── Sección: Datos del estudiante ────────
                         _SectionTitle(title: 'Datos del estudiante', icon: Icons.person_outline_rounded),
@@ -466,10 +408,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                   ),
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
+            ),
     );
   }
 
