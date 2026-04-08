@@ -26,6 +26,15 @@ class ReportModel {
   });
 }
 
+/// Convierte valores de Firestore (`int`, `num` o `"12"`) a [int] para listas y formularios.
+int? parseFirestoreOptionalInt(dynamic value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value.trim());
+  return null;
+}
+
 // Datos de ejemplo para mostrar en la app sin base de datos
 final List<ReportModel> sampleReports = [
   ReportModel(

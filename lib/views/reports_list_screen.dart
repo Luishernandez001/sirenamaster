@@ -32,6 +32,14 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
   // Filtros disponibles
   final List<String> _filters = ['Todos', 'Alta', 'Media', 'Baja'];
 
+  late final Stream<QuerySnapshot> _reportesStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _reportesStream = FirebaseFirestore.instance.collection('reportes').orderBy('fechaHora', descending: true).snapshots();
+  }
+
   // Retorna los reportes filtrados según búsqueda y prioridad
   List<ReportModel> _applyFilters(List<ReportModel> list) {
     return list.where((r) {
@@ -58,166 +66,30 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Encabezado ──────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Reportes',
-                    style: GoogleFonts.poppins(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textDark,
-                    ),
-                  ),
-                  Text(
-                    '${sampleReports.length} reportes registrados',
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      color: AppColors.textMedium,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // ── Barra de búsqueda ────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: AppColors.softShadow,
-                ),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (v) => setState(() => _searchQuery = v),
-                  style: GoogleFonts.poppins(fontSize: 14, color: AppColors.textDark),
-                  decoration: InputDecoration(
-                    hintText: 'Buscar estudiante o curso...',
-                    hintStyle: GoogleFonts.poppins(fontSize: 14, color: AppColors.textLight),
-                    prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textLight, size: 20),
-                    suffixIcon: _searchQuery.isNotEmpty
-                        ? GestureDetector(
-                            onTap: () {
-                              _searchController.clear();
-                              setState(() => _searchQuery = '');
-                            },
-                            child: const Icon(Icons.close_rounded, color: AppColors.textLight, size: 18),
-                          )
-                        : null,
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
+              child: Text(
+                'Reportes',
+                style: GoogleFonts.poppins(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textDark,
                 ),
               ),
             ),
-
-            const SizedBox(height: 12),
-
-            // ── Filtro por fecha ─────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: _selectedDate ?? DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime.now().add(const Duration(days: 365)),
-                        );
-                        if (picked != null) setState(() => _selectedDate = picked);
-                      },
-                      child: Container(
-                        height: 44,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: AppColors.softShadow,
-                          border: Border.all(color: const Color(0xFFEEEEEE)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.calendar_today_outlined, color: AppColors.textLight, size: 18),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                _selectedDate == null ? 'Filtrar por fecha' : '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}',
-                                style: GoogleFonts.poppins(fontSize: 14, color: _selectedDate == null ? AppColors.textLight : AppColors.textDark),
-                              ),
-                            ),
-                            if (_selectedDate != null)
-                              GestureDetector(
-                                onTap: () => setState(() => _selectedDate = null),
-                                child: const Icon(Icons.close_rounded, color: AppColors.textLight, size: 18),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // ── Chips de filtro ──────────────────────────────
-            SizedBox(
-              height: 36,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                itemCount: _filters.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (_, i) {
-                  final filter = _filters[i];
-                  final isActive = filter == _activeFilter;
-                  return GestureDetector(
-                    onTap: () => setState(() => _activeFilter = filter),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                      decoration: BoxDecoration(
-                        gradient: isActive ? AppColors.primaryGradient : null,
-                        color: isActive ? null : Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: isActive ? AppColors.cardShadow : AppColors.softShadow,
-                      ),
-                      child: Text(
-                        filter,
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: isActive ? Colors.white : AppColors.textMedium,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-
             const SizedBox(height: 16),
-
-            // ── Lista de reportes (desde Firestore) ───────────
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance.collection('reportes').orderBy('fechaHora', descending: true).snapshots(),
+                stream: _reportesStream,
                 builder: (context, snapshot) {
-                  if (snapshot.hasError) return Center(child: Text('Error cargando reportes'));
-                  if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Error cargando reportes', style: GoogleFonts.poppins(color: AppColors.textMedium)));
+                  }
+                  if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                  final docs = snapshot.data!.docs;
+                  final docs = snapshot.data?.docs ?? [];
                   final reports = docs.map((d) {
                     final data = d.data() as Map<String, dynamic>;
                     final datos = data['datosEstudiante'] as Map<String, dynamic>? ?? {};
@@ -227,7 +99,7 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
                       id: d.id,
                       studentName: datos['nombre'] ?? '',
                       course: datos['curso'] ?? '',
-                      listNumber: datos['numeroLista'] == null ? null : (datos['numeroLista'] as num).toInt(),
+                      listNumber: parseFirestoreOptionalInt(datos['numeroLista']),
                       priority: clas['prioridad'] ?? 'Media',
                       category: clas['categoria'] ?? 'Otro',
                       description: data['descripcion'] ?? '',
@@ -238,14 +110,147 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
 
                   final filtered = _applyFilters(reports);
 
-                  return filtered.isEmpty
-                      ? const _EmptyState()
-                      : ListView.separated(
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Text(
+                          '${reports.length} reportes registrados',
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            color: AppColors.textMedium,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: AppColors.softShadow,
+                          ),
+                          child: TextField(
+                            controller: _searchController,
+                            onChanged: (v) => setState(() => _searchQuery = v),
+                            style: GoogleFonts.poppins(fontSize: 14, color: AppColors.textDark),
+                            decoration: InputDecoration(
+                              hintText: 'Buscar estudiante o curso...',
+                              hintStyle: GoogleFonts.poppins(fontSize: 14, color: AppColors.textLight),
+                              prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textLight, size: 20),
+                              suffixIcon: _searchQuery.isNotEmpty
+                                  ? GestureDetector(
+                                      onTap: () {
+                                        _searchController.clear();
+                                        setState(() => _searchQuery = '');
+                                      },
+                                      child: const Icon(Icons.close_rounded, color: AppColors.textLight, size: 18),
+                                    )
+                                  : null,
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () async {
+                                  final picked = await showDatePicker(
+                                    context: context,
+                                    initialDate: _selectedDate ?? DateTime.now(),
+                                    firstDate: DateTime(2000),
+                                    lastDate: DateTime.now().add(const Duration(days: 365)),
+                                  );
+                                  if (picked != null) setState(() => _selectedDate = picked);
+                                },
+                                child: Container(
+                                  height: 44,
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: AppColors.softShadow,
+                                    border: Border.all(color: const Color(0xFFEEEEEE)),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.calendar_today_outlined, color: AppColors.textLight, size: 18),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          _selectedDate == null ? 'Filtrar por fecha' : '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}',
+                                          style: GoogleFonts.poppins(fontSize: 14, color: _selectedDate == null ? AppColors.textLight : AppColors.textDark),
+                                        ),
+                                      ),
+                                      if (_selectedDate != null)
+                                        GestureDetector(
+                                          onTap: () => setState(() => _selectedDate = null),
+                                          child: const Icon(Icons.close_rounded, color: AppColors.textLight, size: 18),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 36,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
                           padding: const EdgeInsets.symmetric(horizontal: 24),
-                          itemCount: filtered.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: 12),
-                          itemBuilder: (_, i) => _ReportCard(report: filtered[i]),
-                        );
+                          itemCount: _filters.length,
+                          separatorBuilder: (_, _) => const SizedBox(width: 8),
+                          itemBuilder: (_, i) {
+                            final filter = _filters[i];
+                            final isActive = filter == _activeFilter;
+                            return GestureDetector(
+                              onTap: () => setState(() => _activeFilter = filter),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                                decoration: BoxDecoration(
+                                  gradient: isActive ? AppColors.primaryGradient : null,
+                                  color: isActive ? null : Colors.white,
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: isActive ? AppColors.cardShadow : AppColors.softShadow,
+                                ),
+                                child: Text(
+                                  filter,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: isActive ? Colors.white : AppColors.textMedium,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Expanded(
+                        child: filtered.isEmpty
+                            ? const _EmptyState()
+                            : ListView.separated(
+                                padding: const EdgeInsets.symmetric(horizontal: 24),
+                                itemCount: filtered.length,
+                                separatorBuilder: (_, _) => const SizedBox(height: 12),
+                                itemBuilder: (_, i) => _ReportCard(report: filtered[i]),
+                              ),
+                      ),
+                    ],
+                  );
                 },
               ),
             ),

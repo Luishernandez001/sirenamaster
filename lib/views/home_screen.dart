@@ -5,6 +5,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/constants/colors.dart';
 import '../core/models/report_model.dart';
 import '../widgets/decorative_background.dart';
@@ -22,20 +24,62 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _currentIndex = 0;
 
-  late final List<Widget> _screens;
+  bool _roleResolved = false;
+  bool _isPsychologist = false;
+
   late AnimationController _fadeController;
   late Animation<double> _fadeAnim;
+
+  List<Widget> get _pages {
+    if (_isPsychologist) {
+      return [const _DashboardTab(), const ReportsListScreen()];
+    }
+    return [const _DashboardTab()];
+  }
+
+  static bool _isPsychologistRole(String? rol) {
+    if (rol == null) return false;
+    final r = rol.toLowerCase().trim();
+    return r == 'psicologo' || r == 'psicólogo' || r == 'psicologa' || r == 'psicóloga';
+  }
+
+  Future<void> _loadUserRole() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (!mounted) return;
+      setState(() {
+        _isPsychologist = false;
+        _roleResolved = true;
+        _currentIndex = 0;
+      });
+      return;
+    }
+    try {
+      final doc = await FirebaseFirestore.instance.collection('usuarios').doc(user.uid).get();
+      final rol = doc.data()?['rol'] as String?;
+      if (!mounted) return;
+      setState(() {
+        _isPsychologist = _isPsychologistRole(rol);
+        _roleResolved = true;
+        if (!_isPsychologist) _currentIndex = 0;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isPsychologist = false;
+        _roleResolved = true;
+        _currentIndex = 0;
+      });
+    }
+  }
 
   @override
   void initState() {
     super.initState();
-    _screens = [
-      const _DashboardTab(),
-      const ReportsListScreen(),
-    ];
     _fadeController = AnimationController(vsync: this, duration: const Duration(milliseconds: 220));
     _fadeAnim = CurvedAnimation(parent: _fadeController, curve: Curves.easeInOut);
     _fadeController.forward();
+    _loadUserRole();
   }
 
   @override
@@ -45,8 +89,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _onTabTap(int index) {
+    if (!_isPsychologist && index > 0) return;
     if (index == _currentIndex) return;
     _fadeController.reverse().then((_) {
+      if (!mounted) return;
       setState(() => _currentIndex = index);
       _fadeController.forward();
     });
@@ -54,15 +100,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    if (!_roleResolved) {
+      return Scaffold(
+        backgroundColor: AppColors.smokeWhite,
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.lila),
+        ),
+      );
+    }
+
+    final stackIndex = _pages.length == 1 ? 0 : _currentIndex.clamp(0, _pages.length - 1);
+
     return Scaffold(
       backgroundColor: AppColors.smokeWhite,
       extendBody: true,
       body: FadeTransition(
         opacity: _fadeAnim,
-        child: IndexedStack(index: _currentIndex, children: _screens),
+        child: IndexedStack(index: stackIndex, children: _pages),
       ),
       bottomNavigationBar: _BubbleNavBar(
-        currentIndex: _currentIndex,
+        showReportsTab: _isPsychologist,
+        currentIndex: stackIndex,
         onTap: _onTabTap,
         onAddTap: () => Navigator.push(
           context,
@@ -90,8 +148,14 @@ class _BubbleNavBar extends StatefulWidget {
   final int currentIndex;
   final Function(int) onTap;
   final VoidCallback onAddTap;
+  final bool showReportsTab;
 
-  const _BubbleNavBar({required this.currentIndex, required this.onTap, required this.onAddTap});
+  const _BubbleNavBar({
+    required this.currentIndex,
+    required this.onTap,
+    required this.onAddTap,
+    this.showReportsTab = true,
+  });
 
   @override
   State<_BubbleNavBar> createState() => _BubbleNavBarState();
@@ -134,15 +198,21 @@ class _BubbleNavBarState extends State<_BubbleNavBar> with SingleTickerProviderS
         child: LayoutBuilder(
           builder: (context, constraints) {
             final totalWidth = constraints.maxWidth;
-            final slotWidth = totalWidth / 3;
+            final showMid = widget.showReportsTab;
+            final slotCount = showMid ? 3 : 2;
+            final slotWidth = totalWidth / slotCount;
 
-            // Centro X de cada slot de navegación (slots 0 and 1 are pages)
-            final List<double> slotCenters = [
-              slotWidth * 0.5, // Inicio → slot 0
-              slotWidth * 1.5, // Reportes → slot 1
-            ];
+            final List<double> slotCenters = showMid
+                ? [
+                    slotWidth * 0.5,
+                    slotWidth * 1.5,
+                  ]
+                : [
+                    slotWidth * 0.5,
+                  ];
 
-            final bubbleLeft = slotCenters[widget.currentIndex] - bubbleSize / 2;
+            final bubbleIdx = showMid ? widget.currentIndex.clamp(0, 1) : 0;
+            final bubbleLeft = slotCenters[bubbleIdx] - bubbleSize / 2;
 
             return SizedBox(
               height: barHeight,
@@ -200,9 +270,23 @@ class _BubbleNavBarState extends State<_BubbleNavBar> with SingleTickerProviderS
                   Positioned.fill(
                     child: Row(
                       children: [
-                        Expanded(child: _BubbleNavItem(icon: Icons.home_rounded, index: 0, currentIndex: widget.currentIndex, onTap: widget.onTap)),
-                        Expanded(child: _BubbleNavItem(icon: Icons.description_rounded, index: 1, currentIndex: widget.currentIndex, onTap: widget.onTap)),
-                        // Botón + al final
+                        Expanded(
+                          child: _BubbleNavItem(
+                            icon: Icons.home_rounded,
+                            index: 0,
+                            currentIndex: widget.currentIndex,
+                            onTap: widget.onTap,
+                          ),
+                        ),
+                        if (showMid)
+                          Expanded(
+                            child: _BubbleNavItem(
+                              icon: Icons.description_rounded,
+                              index: 1,
+                              currentIndex: widget.currentIndex,
+                              onTap: widget.onTap,
+                            ),
+                          ),
                         Expanded(
                           child: GestureDetector(
                             onTap: widget.onAddTap,
