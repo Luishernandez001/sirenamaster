@@ -26,7 +26,6 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
 
   // Controladores de texto
   final _studentController = TextEditingController();
-  final _courseController = TextEditingController();
   final _listNumberController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _reporterController = TextEditingController();
@@ -36,14 +35,22 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
   String _selectedPriority = 'Media';
   String _selectedCategory = 'Conductual';
 
+  /// Nivel de curso 1–6 (se guarda como 1ro, 2do, … 6to + sección).
+  int _courseGrade = 1;
+  String _courseSection = 'A';
+
   // Opciones disponibles
   final List<String> _priorities = ['Alta', 'Media', 'Baja'];
   final List<String> _categories = ['Conductual', 'Académico', 'Emocional', 'Familiar', 'Otro'];
 
+  static const List<String> _gradeWords = ['1ro', '2do', '3ro', '4to', '5to', '6to'];
+  static const List<String> _sections = ['A', 'B', 'C', 'D', 'E'];
+
+  String get _composedCourse => '${_gradeWords[_courseGrade - 1]} $_courseSection';
+
   @override
   void dispose() {
     _studentController.dispose();
-    _courseController.dispose();
     _listNumberController.dispose();
     _descriptionController.dispose();
     _reporterController.dispose();
@@ -71,7 +78,7 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
     final doc = {
       'datosEstudiante': {
         'nombre': _studentController.text.trim(),
-        'curso': _courseController.text.trim(),
+        'curso': _composedCourse,
         'numeroLista': int.tryParse(_listNumberController.text.trim()),
       },
       'autor': {
@@ -162,12 +169,109 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
                                 validator: (v) => v!.isEmpty ? 'Campo requerido' : null,
                               ),
                               const SizedBox(height: 16),
-                              _FormField(
-                                controller: _courseController,
-                                label: 'Curso',
-                                hint: 'Ej: 3° Básico A',
-                                icon: Icons.class_outlined,
-                                validator: (v) => v!.isEmpty ? 'Campo requerido' : null,
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(Icons.class_outlined, color: AppColors.textLight, size: 18),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Curso',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.textMedium,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Nivel (1 a 6) y sección (A a E)',
+                                          style: GoogleFonts.poppins(fontSize: 11, color: AppColors.textLight),
+                                        ),
+                                        const SizedBox(height: 10),
+                                        Text(
+                                          'Nivel',
+                                          style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.textMedium),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: List.generate(6, (i) {
+                                            final n = i + 1;
+                                            final selected = _courseGrade == n;
+                                            return GestureDetector(
+                                              onTap: () => setState(() => _courseGrade = n),
+                                              child: AnimatedContainer(
+                                                duration: const Duration(milliseconds: 150),
+                                                width: 44,
+                                                height: 40,
+                                                alignment: Alignment.center,
+                                                decoration: BoxDecoration(
+                                                  gradient: selected ? AppColors.primaryGradient : null,
+                                                  color: selected ? null : AppColors.smokeWhite,
+                                                  borderRadius: BorderRadius.circular(12),
+                                                  border: Border.all(
+                                                    color: selected ? Colors.transparent : const Color(0xFFEEEEEE),
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  '$n',
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 15,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: selected ? Colors.white : AppColors.textDark,
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          }),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          'Sección',
+                                          style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.textMedium),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: _sections.map((s) {
+                                            final selected = _courseSection == s;
+                                            return GestureDetector(
+                                              onTap: () => setState(() => _courseSection = s),
+                                              child: AnimatedContainer(
+                                                duration: const Duration(milliseconds: 150),
+                                                width: 44,
+                                                height: 40,
+                                                alignment: Alignment.center,
+                                                decoration: BoxDecoration(
+                                                  gradient: selected ? AppColors.primaryGradient : null,
+                                                  color: selected ? null : AppColors.smokeWhite,
+                                                  borderRadius: BorderRadius.circular(12),
+                                                  border: Border.all(
+                                                    color: selected ? Colors.transparent : const Color(0xFFEEEEEE),
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  s,
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 15,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: selected ? Colors.white : AppColors.textDark,
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          }).toList(),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 16),
                               // Nº de lista del estudiante (1-50)
