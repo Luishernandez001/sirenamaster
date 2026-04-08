@@ -186,58 +186,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     onTap: _handleLogin,
                   ),
 
-                  const SizedBox(height: 24),
-
-                  // ── Divisor ───────────────────────────────────
-                  Row(
-                    children: [
-                      const Expanded(child: Divider(color: Color(0xFFE0E0E0))),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
-                          'o continúa con',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: AppColors.textLight,
-                          ),
-                        ),
-                      ),
-                      const Expanded(child: Divider(color: Color(0xFFE0E0E0))),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // ── Botón Google (visual, sin funcionalidad) ──
-                  GestureDetector(
-                    onTap: _handleLogin, // En producción: implementar Google Sign-In
-                    child: Container(
-                      width: double.infinity,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: AppColors.softShadow,
-                        border: Border.all(color: const Color(0xFFEEEEEE)),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.g_mobiledata_rounded, size: 28, color: Color(0xFFEA4335)),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Continuar con Google',
-                            style: GoogleFonts.poppins(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.textDark,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
                   const SizedBox(height: 40),
                 ],
               ),
