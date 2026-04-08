@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "819383805174",
+    "project_id": "sireniamaster",
+    "storage_bucket": "sireniamaster.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:819383805174:android:267e730a06f72425d538d7",
+        "android_client_info": {
+          "package_name": "com.example.serenia"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAhOXKcFFXcK43oqMULXD44McWNEGdrLQQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
