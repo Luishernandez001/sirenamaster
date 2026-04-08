@@ -362,23 +362,6 @@ class _DashboardTab extends StatelessWidget {
               ),
 
               const SizedBox(height: 28),
-
-              // ── Reportes recientes ──────────────────────────
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Reportes recientes', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textDark)),
-                  TextButton(
-                    onPressed: () {},
-                    child: Text('Ver todos', style: GoogleFonts.poppins(fontSize: 13, color: const Color(0xFF9575CD), fontWeight: FontWeight.w600)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ...sampleReports.take(3).map((r) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _RecentReportCard(report: r),
-              )),
             ],
           ),
         ),
