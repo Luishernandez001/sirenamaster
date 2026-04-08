@@ -26,15 +26,29 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   bool _roleResolved = false;
   bool _isPsychologist = false;
+  /// Nombre para el saludo (Firestore `usuarios.nombre` o datos de Auth).
+  String _userGreetingName = '';
 
   late AnimationController _fadeController;
   late Animation<double> _fadeAnim;
 
+  static String _resolveGreetingName(User user, Map<String, dynamic>? usuarioDoc) {
+    final fromFirestore = (usuarioDoc?['nombre'] as String?)?.trim();
+    if (fromFirestore != null && fromFirestore.isNotEmpty) return fromFirestore;
+    final dn = user.displayName?.trim();
+    if (dn != null && dn.isNotEmpty) return dn;
+    final email = user.email;
+    if (email != null && email.isNotEmpty) {
+      return email.split('@').first;
+    }
+    return 'Usuario';
+  }
+
   List<Widget> get _pages {
     if (_isPsychologist) {
-      return [const _DashboardTab(), const ReportsListScreen()];
+      return [_DashboardTab(userName: _userGreetingName), const ReportsListScreen()];
     }
-    return [const _DashboardTab()];
+    return [_DashboardTab(userName: _userGreetingName)];
   }
 
   static bool _isPsychologistRole(String? rol) {
@@ -49,6 +63,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (!mounted) return;
       setState(() {
         _isPsychologist = false;
+        _userGreetingName = 'Usuario';
         _roleResolved = true;
         _currentIndex = 0;
       });
@@ -56,9 +71,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
     try {
       final doc = await FirebaseFirestore.instance.collection('usuarios').doc(user.uid).get();
-      final rol = doc.data()?['rol'] as String?;
+      final data = doc.data();
+      final rol = data?['rol'] as String?;
       if (!mounted) return;
       setState(() {
+        _userGreetingName = _resolveGreetingName(user, data);
         _isPsychologist = _isPsychologistRole(rol);
         _roleResolved = true;
         if (!_isPsychologist) _currentIndex = 0;
@@ -66,6 +83,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     } catch (_) {
       if (!mounted) return;
       setState(() {
+        _userGreetingName = _resolveGreetingName(user, null);
         _isPsychologist = false;
         _roleResolved = true;
         _currentIndex = 0;
@@ -374,7 +392,8 @@ _HomeReportCounts _countsFromReportDocs(List<QueryDocumentSnapshot<Object?>> doc
 // _DashboardTab — Dashboard premium (estadísticas desde Firestore)
 // ============================================================
 class _DashboardTab extends StatefulWidget {
-  const _DashboardTab();
+  final String userName;
+  const _DashboardTab({required this.userName});
 
   @override
   State<_DashboardTab> createState() => _DashboardTabState();
@@ -414,8 +433,12 @@ class _DashboardTabState extends State<_DashboardTab> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Hola, Orientador 👋',
-                            style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textDark)),
+                        Text(
+                          'Hola, ${widget.userName} 👋',
+                          style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textDark),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                         Text(fechaStr,
                             style: GoogleFonts.poppins(fontSize: 12, color: AppColors.textMedium)),
                       ],
