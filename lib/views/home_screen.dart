@@ -8,11 +8,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/constants/colors.dart';
-import '../core/models/report_model.dart';
+import '../core/utils/report_firestore.dart';
+import '../core/utils/user_access.dart';
 import '../widgets/decorative_background.dart';
-import '../widgets/priority_badge.dart';
 import 'reports_list_screen.dart';
 import 'create_report_screen.dart';
+import 'welcome_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,66 +26,54 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _currentIndex = 0;
 
   bool _roleResolved = false;
-  bool _isPsychologist = false;
-  /// Nombre para el saludo (Firestore `usuarios.nombre` o datos de Auth).
-  String _userGreetingName = '';
+  AppUserProfile _profile = const AppUserProfile.anonymous();
 
   late AnimationController _fadeController;
   late Animation<double> _fadeAnim;
 
-  static String _resolveGreetingName(User user, Map<String, dynamic>? usuarioDoc) {
-    final fromFirestore = (usuarioDoc?['nombre'] as String?)?.trim();
-    if (fromFirestore != null && fromFirestore.isNotEmpty) return fromFirestore;
-    final dn = user.displayName?.trim();
-    if (dn != null && dn.isNotEmpty) return dn;
-    final email = user.email;
-    if (email != null && email.isNotEmpty) {
-      return email.split('@').first;
-    }
-    return 'Usuario';
+  Future<void> _logout() async {
+    await FirebaseAuth.instance.signOut();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+      (_) => false,
+    );
   }
 
   List<Widget> get _pages {
-    if (_isPsychologist) {
-      return [_DashboardTab(userName: _userGreetingName), const ReportsListScreen()];
+    if (_profile.isPsychologist) {
+      return [
+        _DashboardTab(
+          userName: _profile.displayName,
+          isPsychologist: true,
+          onSeguimientoTap: () => _onTabTap(1),
+          onLogout: _logout,
+        ),
+        const ReportsListScreen(),
+      ];
     }
-    return [_DashboardTab(userName: _userGreetingName)];
-  }
-
-  static bool _isPsychologistRole(String? rol) {
-    if (rol == null) return false;
-    final r = rol.toLowerCase().trim();
-    return r == 'psicologo' || r == 'psicólogo' || r == 'psicologa' || r == 'psicóloga';
+    return [
+      _DashboardTab(
+        userName: _profile.displayName,
+        isPsychologist: false,
+        onLogout: _logout,
+      ),
+    ];
   }
 
   Future<void> _loadUserRole() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      if (!mounted) return;
-      setState(() {
-        _isPsychologist = false;
-        _userGreetingName = 'Usuario';
-        _roleResolved = true;
-        _currentIndex = 0;
-      });
-      return;
-    }
     try {
-      final doc = await FirebaseFirestore.instance.collection('usuarios').doc(user.uid).get();
-      final data = doc.data();
-      final rol = data?['rol'] as String?;
+      final profile = await loadCurrentUserProfile();
       if (!mounted) return;
       setState(() {
-        _userGreetingName = _resolveGreetingName(user, data);
-        _isPsychologist = _isPsychologistRole(rol);
+        _profile = profile;
         _roleResolved = true;
-        if (!_isPsychologist) _currentIndex = 0;
+        if (!_profile.isPsychologist) _currentIndex = 0;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _userGreetingName = _resolveGreetingName(user, null);
-        _isPsychologist = false;
+        _profile = const AppUserProfile.anonymous();
         _roleResolved = true;
         _currentIndex = 0;
       });
@@ -107,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _onTabTap(int index) {
-    if (!_isPsychologist && index > 0) return;
+    if (!_profile.isPsychologist && index > 0) return;
     if (index == _currentIndex) return;
     _fadeController.reverse().then((_) {
       if (!mounted) return;
@@ -137,7 +126,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         child: IndexedStack(index: stackIndex, children: _pages),
       ),
       bottomNavigationBar: _BubbleNavBar(
-        showReportsTab: _isPsychologist,
+        showReportsTab: _profile.isPsychologist,
         currentIndex: stackIndex,
         onTap: _onTabTap,
         onAddTap: () => Navigator.push(
@@ -393,19 +382,33 @@ _HomeReportCounts _countsFromReportDocs(List<QueryDocumentSnapshot<Object?>> doc
 // ============================================================
 class _DashboardTab extends StatefulWidget {
   final String userName;
-  const _DashboardTab({required this.userName});
+  final bool isPsychologist;
+  final VoidCallback? onSeguimientoTap;
+  final VoidCallback? onLogout;
+  const _DashboardTab({
+    required this.userName,
+    required this.isPsychologist,
+    this.onSeguimientoTap,
+    this.onLogout,
+  });
 
   @override
   State<_DashboardTab> createState() => _DashboardTabState();
 }
 
 class _DashboardTabState extends State<_DashboardTab> {
-  late final Stream<QuerySnapshot> _reportesStream;
+  late Future<List<QueryDocumentSnapshot<Object?>>> _reportesFuture;
 
   @override
   void initState() {
     super.initState();
-    _reportesStream = FirebaseFirestore.instance.collection('reportes').orderBy('fechaHora', descending: true).snapshots();
+    _reportesFuture = fetchSortedReportDocs();
+  }
+
+  void _reloadReports() {
+    setState(() {
+      _reportesFuture = fetchSortedReportDocs();
+    });
   }
 
   @override
@@ -444,42 +447,54 @@ class _DashboardTabState extends State<_DashboardTab> {
                       ],
                     ),
                   ),
-                  // Avatar con gradiente
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      gradient: AppColors.primaryGradient,
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: AppColors.cardShadow,
+                  GestureDetector(
+                    onTap: widget.onLogout,
+                    child: Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        gradient: AppColors.primaryGradient,
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: AppColors.cardShadow,
+                      ),
+                      child: const Icon(Icons.logout_rounded, color: Colors.white, size: 22),
                     ),
-                    child: const Icon(Icons.person_rounded, color: Colors.white, size: 24),
                   ),
                 ],
               ),
 
               const SizedBox(height: 24),
 
-              StreamBuilder<QuerySnapshot>(
-                stream: _reportesStream,
+              FutureBuilder<List<QueryDocumentSnapshot<Object?>>>(
+                future: _reportesFuture,
                 builder: (context, snapshot) {
                   if (snapshot.hasError) {
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 24),
-                      child: Text(
-                        'No se pudieron cargar las estadísticas. Revisa tu conexión o permisos de Firestore.',
-                        style: GoogleFonts.poppins(fontSize: 13, color: AppColors.textMedium),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'No se pudieron cargar las estadísticas.',
+                            style: GoogleFonts.poppins(fontSize: 13, color: AppColors.textMedium),
+                          ),
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: _reloadReports,
+                            child: const Text('Reintentar'),
+                          ),
+                        ],
                       ),
                     );
                   }
-                  if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Padding(
                       padding: EdgeInsets.symmetric(vertical: 48),
                       child: Center(child: CircularProgressIndicator()),
                     );
                   }
 
-                  final docs = snapshot.data?.docs ?? [];
+                  final docs = snapshot.data ?? const <QueryDocumentSnapshot<Object?>>[];
                   final c = _countsFromReportDocs(docs);
 
                   return Column(
@@ -519,16 +534,18 @@ class _DashboardTabState extends State<_DashboardTab> {
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateReportScreen())),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _QuickAction(
-                      icon: Icons.psychology_rounded,
-                      label: 'Seguimiento\nPsicológico',
-                      color: AppColors.mintGreen,
-                      iconColor: const Color(0xFF43A047),
-                      onTap: () {},
+                  if (widget.isPsychologist) ...[
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _QuickAction(
+                        icon: Icons.search_rounded,
+                        label: 'Buscar\nReportes',
+                        color: AppColors.mintGreen,
+                        iconColor: const Color(0xFF43A047),
+                        onTap: widget.onSeguimientoTap ?? () {},
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
 
@@ -746,44 +763,3 @@ class _QuickAction extends StatelessWidget {
   }
 }
 
-// ── Tarjeta de reporte reciente ───────────────────────────────
-class _RecentReportCard extends StatelessWidget {
-  final ReportModel report;
-  const _RecentReportCard({required this.report});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: AppColors.softShadow,
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              gradient: AppColors.primaryGradient,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(Icons.person_outline_rounded, color: Colors.white, size: 22),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(report.studentName, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textDark)),
-                Text('${report.course} · ${report.category}', style: GoogleFonts.poppins(fontSize: 12, color: AppColors.textMedium)),
-              ],
-            ),
-          ),
-          PriorityBadge(priority: report.priority),
-        ],
-      ),
-    );
-  }
-}

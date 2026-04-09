@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/constants/colors.dart';
 import '../core/models/report_model.dart';
+import '../core/utils/report_firestore.dart';
 import '../widgets/soft_card.dart';
 import '../widgets/decorative_background.dart';
 import '../widgets/priority_badge.dart';
@@ -32,12 +33,18 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
   // Filtros disponibles
   final List<String> _filters = ['Todos', 'Alta', 'Media', 'Baja'];
 
-  late final Stream<QuerySnapshot> _reportesStream;
+  late Future<List<QueryDocumentSnapshot<Object?>>> _reportesFuture;
 
   @override
   void initState() {
     super.initState();
-    _reportesStream = FirebaseFirestore.instance.collection('reportes').orderBy('fechaHora', descending: true).snapshots();
+    _reportesFuture = fetchSortedReportDocs();
+  }
+
+  void _reloadReports() {
+    setState(() {
+      _reportesFuture = fetchSortedReportDocs();
+    });
   }
 
   /// Minúsculas y sin tildes para comparar búsqueda con datos (p. ej. "academico" ≈ "Académico").
@@ -123,25 +130,40 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-              child: Text(
-                'Reportes',
-                style: GoogleFonts.poppins(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textDark,
-                ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Reportes',
+                      style: GoogleFonts.poppins(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _reloadReports,
+                    icon: const Icon(Icons.refresh_rounded),
+                    color: AppColors.textMedium,
+                    tooltip: 'Recargar reportes',
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: StreamBuilder<QuerySnapshot>(
-                stream: _reportesStream,
+              child: FutureBuilder<List<QueryDocumentSnapshot<Object?>>>(
+                future: _reportesFuture,
                 builder: (context, snapshot) {
                   if (snapshot.hasError) {
-                    return Text('Error al cargar el conteo', style: GoogleFonts.poppins(fontSize: 13, color: AppColors.textMedium));
+                    return Text(
+                      'No se pudo cargar el conteo',
+                      style: GoogleFonts.poppins(fontSize: 13, color: AppColors.textMedium),
+                    );
                   }
-                  final n = snapshot.data?.docs.length;
+                  final n = snapshot.data?.length;
                   final label = n == null ? '…' : '$n';
                   return Text(
                     '$label reportes registrados',
@@ -154,7 +176,7 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            // Fuera del StreamBuilder principal: evita perder el foco al escribir (p. ej. Flutter web + snapshots).
+            // Fuera del FutureBuilder principal: evita perder el foco al escribir.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Container(
@@ -271,17 +293,32 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
             ),
             const SizedBox(height: 16),
             Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: _reportesStream,
+              child: FutureBuilder<List<QueryDocumentSnapshot<Object?>>>(
+                future: _reportesFuture,
                 builder: (context, snapshot) {
                   if (snapshot.hasError) {
-                    return Center(child: Text('Error cargando reportes', style: GoogleFonts.poppins(color: AppColors.textMedium)));
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Error cargando reportes',
+                            style: GoogleFonts.poppins(color: AppColors.textMedium),
+                          ),
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: _reloadReports,
+                            child: const Text('Reintentar'),
+                          ),
+                        ],
+                      ),
+                    );
                   }
-                  if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  final docs = snapshot.data?.docs ?? [];
+                  final docs = snapshot.data ?? const <QueryDocumentSnapshot<Object?>>[];
                   final reports = _mapDocsToReports(docs);
                   final filtered = _applyFilters(reports);
 
