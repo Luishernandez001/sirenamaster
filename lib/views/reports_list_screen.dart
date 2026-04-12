@@ -1,15 +1,17 @@
 // ============================================================
 // reports_list_screen.dart — Lista de todos los reportes
-// Filtros por prioridad y búsqueda por nombre, curso, Nº lista, categoría y prioridad
+// Filtros por prioridad, búsqueda, selección múltiple y
+// exportación a PDF profesional
 // ============================================================
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:printing/printing.dart';
 import '../core/constants/colors.dart';
 import '../core/models/report_model.dart';
 import '../core/utils/report_firestore.dart';
-import '../widgets/soft_card.dart';
+import '../core/utils/pdf_report_generator.dart';
 import '../widgets/decorative_background.dart';
 import '../widgets/priority_badge.dart';
 
@@ -21,19 +23,17 @@ class ReportsListScreen extends StatefulWidget {
 }
 
 class _ReportsListScreenState extends State<ReportsListScreen> {
-  // Filtro activo: 'Todos', 'Alta', 'Media', 'Baja'
   String _activeFilter = 'Todos';
-
-  // Texto de búsqueda
   String _searchQuery = '';
 
   final _searchController = TextEditingController();
   DateTime? _selectedDate;
 
-  // Filtros disponibles
   final List<String> _filters = ['Todos', 'Alta', 'Media', 'Baja'];
 
   late Future<List<QueryDocumentSnapshot<Object?>>> _reportesFuture;
+
+  final Set<String> _selectedIds = {};
 
   @override
   void initState() {
@@ -44,10 +44,10 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
   void _reloadReports() {
     setState(() {
       _reportesFuture = fetchSortedReportDocs();
+      _selectedIds.clear();
     });
   }
 
-  /// Minúsculas y sin tildes para comparar búsqueda con datos (p. ej. "academico" ≈ "Académico").
   static String _normalizeForSearch(String input) {
     var s = input.toLowerCase();
     const from = 'áàäâãåéèëêíìïîóòöôõúùüûñ';
@@ -83,7 +83,6 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
     return false;
   }
 
-  // Retorna los reportes filtrados según búsqueda y prioridad
   List<ReportModel> _applyFilters(List<ReportModel> list) {
     return list.where((r) {
       final matchesPriority = _activeFilter == 'Todos' || r.priority == _activeFilter;
@@ -119,6 +118,58 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
         reportedBy: autor['nombre']?.toString() ?? '',
       );
     }).toList();
+  }
+
+  void _toggleSelection(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  void _toggleSelectAll(List<ReportModel> filtered) {
+    setState(() {
+      final allVisibleSelected = filtered.every((r) => _selectedIds.contains(r.id));
+      if (allVisibleSelected) {
+        for (final r in filtered) {
+          _selectedIds.remove(r.id);
+        }
+      } else {
+        for (final r in filtered) {
+          _selectedIds.add(r.id);
+        }
+      }
+    });
+  }
+
+  Future<void> _printSelected(List<ReportModel> allReports) async {
+    final selected = allReports.where((r) => _selectedIds.contains(r.id)).toList();
+    if (selected.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Selecciona al menos un reporte para imprimir',
+            style: GoogleFonts.poppins(fontSize: 13),
+          ),
+          backgroundColor: const Color(0xFF9575CD),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+      return;
+    }
+
+    final pdfBytes = await PdfReportGenerator.generate(selected);
+
+    if (!mounted) return;
+
+    await Printing.layoutPdf(
+      onLayout: (_) => pdfBytes,
+      name: 'Serenia_Reportes_${DateTime.now().millisecondsSinceEpoch}',
+    );
   }
 
   @override
@@ -176,7 +227,6 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            // Fuera del FutureBuilder principal: evita perder el foco al escribir.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Container(
@@ -257,41 +307,62 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            SizedBox(
-              height: 36,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                itemCount: _filters.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (_, i) {
-                  final filter = _filters[i];
-                  final isActive = filter == _activeFilter;
-                  return GestureDetector(
-                    onTap: () => setState(() => _activeFilter = filter),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                      decoration: BoxDecoration(
-                        gradient: isActive ? AppColors.primaryGradient : null,
-                        color: isActive ? null : Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: isActive ? AppColors.cardShadow : AppColors.softShadow,
-                      ),
-                      child: Text(
-                        filter,
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: isActive ? Colors.white : AppColors.textMedium,
-                        ),
+
+            // Fila de filtros + botón imprimir
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 36,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _filters.length,
+                        separatorBuilder: (_, _) => const SizedBox(width: 8),
+                        itemBuilder: (_, i) {
+                          final filter = _filters[i];
+                          final isActive = filter == _activeFilter;
+                          return GestureDetector(
+                            onTap: () => setState(() => _activeFilter = filter),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                              decoration: BoxDecoration(
+                                gradient: isActive ? AppColors.primaryGradient : null,
+                                color: isActive ? null : Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: isActive ? AppColors.cardShadow : AppColors.softShadow,
+                              ),
+                              child: Text(
+                                filter,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: isActive ? Colors.white : AppColors.textMedium,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
-                  );
-                },
+                  ),
+                  const SizedBox(width: 8),
+                  _PrintButton(
+                    count: _selectedIds.length,
+                    onPressed: () {
+                      // Will be connected inside FutureBuilder via callback
+                      _printSelectedFromState();
+                    },
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
+
+            const SizedBox(height: 12),
+
+            // Select-all row (visible when there are filtered results)
             Expanded(
               child: FutureBuilder<List<QueryDocumentSnapshot<Object?>>>(
                 future: _reportesFuture,
@@ -319,17 +390,101 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
                   }
 
                   final docs = snapshot.data ?? const <QueryDocumentSnapshot<Object?>>[];
-                  final reports = _mapDocsToReports(docs);
-                  final filtered = _applyFilters(reports);
+                  _allReports = _mapDocsToReports(docs);
+                  final filtered = _applyFilters(_allReports);
 
                   if (filtered.isEmpty) {
                     return const _EmptyState();
                   }
-                  return ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    itemCount: filtered.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 12),
-                    itemBuilder: (_, i) => _ReportCard(report: filtered[i]),
+
+                  final allVisibleSelected = filtered.every((r) => _selectedIds.contains(r.id));
+
+                  return Column(
+                    children: [
+                      // Select all row
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: GestureDetector(
+                          onTap: () => _toggleSelectAll(filtered),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: _selectedIds.isNotEmpty
+                                  ? const Color(0xFFEDE7F6)
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _selectedIds.isNotEmpty
+                                    ? const Color(0xFFB39DDB)
+                                    : const Color(0xFFEEEEEE),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: Checkbox(
+                                    value: allVisibleSelected && filtered.isNotEmpty,
+                                    onChanged: (_) => _toggleSelectAll(filtered),
+                                    activeColor: const Color(0xFF9575CD),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    side: const BorderSide(color: Color(0xFFB39DDB)),
+                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _selectedIds.isEmpty
+                                        ? 'Seleccionar todos (${filtered.length})'
+                                        : '${_selectedIds.length} reporte${_selectedIds.length == 1 ? '' : 's'} seleccionado${_selectedIds.length == 1 ? '' : 's'}',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: _selectedIds.isNotEmpty
+                                          ? const Color(0xFF7C4DFF)
+                                          : AppColors.textMedium,
+                                    ),
+                                  ),
+                                ),
+                                if (_selectedIds.isNotEmpty)
+                                  GestureDetector(
+                                    onTap: () => setState(() => _selectedIds.clear()),
+                                    child: Text(
+                                      'Limpiar',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                        color: AppColors.textLight,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Lista de reportes
+                      Expanded(
+                        child: ListView.separated(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 12),
+                          itemBuilder: (_, i) => _SelectableReportCard(
+                            report: filtered[i],
+                            isSelected: _selectedIds.contains(filtered[i].id),
+                            onToggle: () => _toggleSelection(filtered[i].id),
+                          ),
+                        ),
+                      ),
+                    ],
                   );
                 },
               ),
@@ -339,107 +494,215 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
       ),
     );
   }
+
+  List<ReportModel> _allReports = [];
+
+  void _printSelectedFromState() {
+    _printSelected(_allReports);
+  }
 }
 
-// ── Widget: tarjeta de reporte completa ───────────────────────
-class _ReportCard extends StatelessWidget {
-  final ReportModel report;
-  const _ReportCard({required this.report});
+// ── Widget: botón imprimir reportes ──────────────────────────
+class _PrintButton extends StatelessWidget {
+  final int count;
+  final VoidCallback onPressed;
+  const _PrintButton({required this.count, required this.onPressed});
 
-  // Retorna el ícono según la categoría del reporte
+  @override
+  Widget build(BuildContext context) {
+    final hasSelection = count > 0;
+    return GestureDetector(
+      onTap: hasSelection ? onPressed : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        height: 36,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          gradient: hasSelection ? AppColors.primaryGradient : null,
+          color: hasSelection ? null : const Color(0xFFE8E8E8),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: hasSelection ? AppColors.cardShadow : [],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.print_rounded,
+              size: 16,
+              color: hasSelection ? Colors.white : AppColors.textLight,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              hasSelection ? 'Imprimir ($count)' : 'Imprimir',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: hasSelection ? Colors.white : AppColors.textLight,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Widget: tarjeta de reporte con checkbox ──────────────────
+class _SelectableReportCard extends StatelessWidget {
+  final ReportModel report;
+  final bool isSelected;
+  final VoidCallback onToggle;
+  const _SelectableReportCard({
+    required this.report,
+    required this.isSelected,
+    required this.onToggle,
+  });
+
   IconData get _categoryIcon {
     switch (report.category) {
-      case 'Conductual': return Icons.psychology_alt_rounded;
-      case 'Académico': return Icons.menu_book_rounded;
-      case 'Emocional': return Icons.favorite_border_rounded;
-      case 'Familiar': return Icons.family_restroom_rounded;
-      default: return Icons.description_rounded;
+      case 'Conductual':
+        return Icons.psychology_alt_rounded;
+      case 'Académico':
+        return Icons.menu_book_rounded;
+      case 'Emocional':
+        return Icons.favorite_border_rounded;
+      case 'Familiar':
+        return Icons.family_restroom_rounded;
+      default:
+        return Icons.description_rounded;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return SoftCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Fila superior: nombre + badge de prioridad
-          Row(
+    return GestureDetector(
+      onTap: onToggle,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF9575CD) : Colors.transparent,
+            width: isSelected ? 2 : 0,
+          ),
+          boxShadow: isSelected ? AppColors.cardShadow : AppColors.softShadow,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppColors.lila,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(_categoryIcon, color: const Color(0xFF7C4DFF), size: 20),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Checkbox
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: Checkbox(
+                        value: isSelected,
+                        onChanged: (_) => onToggle(),
+                        activeColor: const Color(0xFF9575CD),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        side: BorderSide(
+                          color: isSelected
+                              ? const Color(0xFF9575CD)
+                              : const Color(0xFFCCCCCC),
+                        ),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+
+                  // Category icon
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: isSelected ? const Color(0xFFEDE7F6) : AppColors.lila,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(_categoryIcon, color: const Color(0xFF7C4DFF), size: 20),
+                  ),
+                  const SizedBox(width: 12),
+
+                  // Student info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          report.studentName,
+                          style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textDark,
+                          ),
+                        ),
+                        Text(
+                          report.course,
+                          style: GoogleFonts.poppins(fontSize: 12, color: AppColors.textMedium),
+                        ),
+                        if (report.area.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            'Área: ${report.area}',
+                            style: GoogleFonts.poppins(fontSize: 11, color: AppColors.textLight),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  PriorityBadge(priority: report.priority),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+
+              const SizedBox(height: 12),
+
+              Padding(
+                padding: const EdgeInsets.only(left: 32),
+                child: Text(
+                  report.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    color: AppColors.textMedium,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              Padding(
+                padding: const EdgeInsets.only(left: 32),
+                child: Row(
                   children: [
-                    Text(
-                      report.studentName,
-                      style: GoogleFonts.poppins(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textDark,
-                      ),
+                    _InfoChip(label: report.category, icon: Icons.label_outline_rounded),
+                    const SizedBox(width: 8),
+                    _InfoChip(
+                      label: '${report.date.day}/${report.date.month}/${report.date.year}',
+                      icon: Icons.calendar_today_rounded,
                     ),
+                    const Spacer(),
                     Text(
-                      report.course,
-                      style: GoogleFonts.poppins(fontSize: 12, color: AppColors.textMedium),
+                      report.reportedBy,
+                      style: GoogleFonts.poppins(fontSize: 11, color: AppColors.textLight),
                     ),
-                    if (report.area.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        'Área: ${report.area}',
-                        style: GoogleFonts.poppins(fontSize: 11, color: AppColors.textLight),
-                      ),
-                    ],
                   ],
                 ),
               ),
-              PriorityBadge(priority: report.priority),
             ],
           ),
-
-          const SizedBox(height: 12),
-
-          // Descripción del reporte (máximo 2 líneas)
-          Text(
-            report.description,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.poppins(
-              fontSize: 13,
-              color: AppColors.textMedium,
-              height: 1.4,
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Fila inferior: categoría + fecha + reportado por
-          Row(
-            children: [
-              _InfoChip(label: report.category, icon: Icons.label_outline_rounded),
-              const SizedBox(width: 8),
-              _InfoChip(
-                label: '${report.date.day}/${report.date.month}/${report.date.year}',
-                icon: Icons.calendar_today_rounded,
-              ),
-              const Spacer(),
-              Text(
-                report.reportedBy,
-                style: GoogleFonts.poppins(fontSize: 11, color: AppColors.textLight),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -484,7 +747,6 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Estado vacío con imagen real
           Image.asset(
             'assets/images/empty_state.png',
             width: 160,
