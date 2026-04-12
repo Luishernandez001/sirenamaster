@@ -24,6 +24,9 @@ dependencies:
   printing: ^5.13.5
   intl: ^0.20.2
 
+  # HTTP client para API de IA
+  http: ^1.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

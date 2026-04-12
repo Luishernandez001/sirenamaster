@@ -14,6 +14,7 @@ import '../core/utils/report_firestore.dart';
 import '../core/utils/pdf_report_generator.dart';
 import '../widgets/decorative_background.dart';
 import '../widgets/priority_badge.dart';
+import 'expert_chat_screen.dart';
 
 class ReportsListScreen extends StatefulWidget {
   const ReportsListScreen({super.key});
@@ -308,59 +309,72 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
             ),
             const SizedBox(height: 12),
 
-            // Fila de filtros + botón imprimir
+            // Fila de filtros
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 36,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _filters.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 8),
-                        itemBuilder: (_, i) {
-                          final filter = _filters[i];
-                          final isActive = filter == _activeFilter;
-                          return GestureDetector(
-                            onTap: () => setState(() => _activeFilter = filter),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                              decoration: BoxDecoration(
-                                gradient: isActive ? AppColors.primaryGradient : null,
-                                color: isActive ? null : Colors.white,
-                                borderRadius: BorderRadius.circular(20),
-                                boxShadow: isActive ? AppColors.cardShadow : AppColors.softShadow,
-                              ),
-                              child: Text(
-                                filter,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  color: isActive ? Colors.white : AppColors.textMedium,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
+              child: SizedBox(
+                height: 36,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _filters.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 8),
+                  itemBuilder: (_, i) {
+                    final filter = _filters[i];
+                    final isActive = filter == _activeFilter;
+                    return GestureDetector(
+                      onTap: () => setState(() => _activeFilter = filter),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        decoration: BoxDecoration(
+                          gradient: isActive ? AppColors.primaryGradient : null,
+                          color: isActive ? null : Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: isActive ? AppColors.cardShadow : AppColors.softShadow,
+                        ),
+                        child: Text(
+                          filter,
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: isActive ? Colors.white : AppColors.textMedium,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _PrintButton(
-                    count: _selectedIds.length,
-                    onPressed: () {
-                      // Will be connected inside FutureBuilder via callback
-                      _printSelectedFromState();
-                    },
-                  ),
-                ],
+                    );
+                  },
+                ),
               ),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
+
+            // Fila de acciones: Imprimir + Conversar con experto
+            AnimatedSize(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOut,
+              child: _selectedIds.isEmpty
+                  ? const SizedBox(height: 2)
+                  : Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          _PrintButton(
+                            count: _selectedIds.length,
+                            onPressed: _printSelectedFromState,
+                          ),
+                          const SizedBox(width: 8),
+                          _ExpertChatButton(
+                            count: _selectedIds.length,
+                            onPressed: () => _openExpertChat(),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+
+            const SizedBox(height: 8),
 
             // Select-all row (visible when there are filtered results)
             Expanded(
@@ -500,6 +514,46 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
   void _printSelectedFromState() {
     _printSelected(_allReports);
   }
+
+  void _openExpertChat() {
+    final selected =
+        _allReports.where((r) => _selectedIds.contains(r.id)).toList();
+    if (selected.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Selecciona al menos un reporte para consultar',
+            style: GoogleFonts.poppins(fontSize: 13),
+          ),
+          backgroundColor: const Color(0xFF9575CD),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (_, _, _) =>
+            ExpertChatScreen(selectedReports: selected),
+        transitionsBuilder: (_, animation, _, child) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(1, 0),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            )),
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 350),
+      ),
+    );
+  }
 }
 
 // ── Widget: botón imprimir reportes ──────────────────────────
@@ -534,6 +588,59 @@ class _PrintButton extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               hasSelection ? 'Imprimir ($count)' : 'Imprimir',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: hasSelection ? Colors.white : AppColors.textLight,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Widget: botón conversar con experto ──────────────────────
+class _ExpertChatButton extends StatelessWidget {
+  final int count;
+  final VoidCallback onPressed;
+  const _ExpertChatButton({required this.count, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasSelection = count > 0;
+    return GestureDetector(
+      onTap: hasSelection ? onPressed : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        height: 36,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          gradient: hasSelection ? AppColors.secondaryGradient : null,
+          color: hasSelection ? null : const Color(0xFFE8E8E8),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: hasSelection
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF81C784).withValues(alpha: 0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : [],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.psychology_rounded,
+              size: 16,
+              color: hasSelection ? Colors.white : AppColors.textLight,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Conversar con experto',
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
