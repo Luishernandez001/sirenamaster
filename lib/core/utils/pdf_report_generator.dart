@@ -4,6 +4,7 @@
 // ============================================================
 
 import 'dart:typed_data';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart';
@@ -47,10 +48,21 @@ class PdfReportGenerator {
   }
 
   static Future<Uint8List> generate(List<ReportModel> reports) async {
+    final fontData = await rootBundle.load('assets/fonts/Poppins-Regular.ttf');
+    final fontBoldData = await rootBundle.load('assets/fonts/Poppins-Bold.ttf');
+    final fontItalicData = await rootBundle.load('assets/fonts/Poppins-Italic.ttf');
+    final fontBoldItalicData = await rootBundle.load('assets/fonts/Poppins-BoldItalic.ttf');
+
     final pdf = pw.Document(
       title: 'Reportes Estudiantiles — Serenia',
       author: 'Departamento de Psicología',
       creator: 'Serenia App',
+      theme: pw.ThemeData.withFont(
+        base: pw.Font.ttf(fontData),
+        bold: pw.Font.ttf(fontBoldData),
+        italic: pw.Font.ttf(fontItalicData),
+        boldItalic: pw.Font.ttf(fontBoldItalicData),
+      ),
     );
 
     final now = DateTime.now();

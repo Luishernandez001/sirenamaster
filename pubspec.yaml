@@ -38,6 +38,7 @@ flutter:
   # Carpeta de assets (imágenes)
   assets:
     - assets/images/
+    - assets/fonts/
 
   # Fuentes locales (opcional, google_fonts las descarga automáticamente)
   fonts: []

@@ -163,14 +163,29 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
       return;
     }
 
-    final pdfBytes = await PdfReportGenerator.generate(selected);
+    try {
+      if (!mounted) return;
 
-    if (!mounted) return;
-
-    await Printing.layoutPdf(
-      onLayout: (_) => pdfBytes,
-      name: 'Serenia_Reportes_${DateTime.now().millisecondsSinceEpoch}',
-    );
+      await Printing.layoutPdf(
+        onLayout: (_) async {
+          return PdfReportGenerator.generate(selected);
+        },
+        name: 'Serenia_Reportes_${DateTime.now().millisecondsSinceEpoch}',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Error al generar el PDF. Intenta de nuevo.',
+            style: GoogleFonts.poppins(fontSize: 13),
+          ),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    }
   }
 
   @override
