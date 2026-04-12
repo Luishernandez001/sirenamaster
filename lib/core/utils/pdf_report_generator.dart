@@ -153,7 +153,7 @@ class PdfReportGenerator {
               pw.Text(
                 'POLITÉCNICO ALTAGRACIA IGLESIAS DE LORA',
                 style: pw.TextStyle(
-                  fontSize: 20,
+                  fontSize: 12,
                   fontWeight: pw.FontWeight.bold,
                   color: PdfColors.white,
                   letterSpacing: 4,
