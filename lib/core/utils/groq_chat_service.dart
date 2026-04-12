@@ -23,8 +23,9 @@ class ChatMessage {
 
 class GroqChatService {
   static const _apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
-  static const _apiKey =
-      'GROQ_API_KEY';
+
+static const _apiKey = 'GROQ_API_KEY';
+
   static const _model = 'llama-3.3-70b-versatile';
 
   final List<ChatMessage> _history = [];
